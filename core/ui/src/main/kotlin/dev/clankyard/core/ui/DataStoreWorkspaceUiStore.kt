@@ -7,11 +7,13 @@ import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
 import com.google.protobuf.InvalidProtocolBufferException
 import dev.clankyard.core.ui.proto.WorkspaceUiStateProto
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.io.InputStream
@@ -26,11 +28,14 @@ class DataStoreWorkspaceUiStore(
     context: Context,
 ) : WorkspaceUiStore {
     private val dataStore = context.workspaceUiDataStore
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, _ -> },
+    )
 
     override val state: StateFlow<WorkspaceUiState> =
         dataStore.data
             .map { it.toModel() }
+            .catch { emit(WorkspaceUiState()) }
             .stateIn(scope, SharingStarted.Eagerly, WorkspaceUiState())
 
     override suspend fun update(transform: (WorkspaceUiState) -> WorkspaceUiState) {

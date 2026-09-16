@@ -33,7 +33,7 @@ fun WorkspaceUiState.toProto(): WorkspaceUiStateProto {
 fun WorkspaceUiStateProto.toModel(): WorkspaceUiState =
     WorkspaceUiState(
         workspaceId = optionalId(hasWorkspaceId(), workspaceId),
-        tabs = tabsList.map(::tabToModel),
+        tabs = tabsList.mapNotNull(::tabToModel),
         activePath = optionalPath(hasActivePath(), activePath),
         filesWeight = if (hasFilesWeight()) filesWeight else 0.22f,
         editorWeight = if (hasEditorWeight()) editorWeight else 0.50f,
@@ -49,15 +49,18 @@ fun WorkspaceUiStateProto.toModel(): WorkspaceUiState =
 private fun optionalId(present: Boolean, value: String): WorkspaceId? =
     value.takeIf { present && it.isNotEmpty() }?.let(::WorkspaceId)
 
-private fun optionalPath(present: Boolean, value: String): WorkspacePath? =
-    value.takeIf { present && it.isNotEmpty() }?.let(WorkspacePath::parse)
+private fun optionalPath(present: Boolean, value: String): WorkspacePath? {
+    if (!present) return null
+    return parsePathOrNull(value)
+}
 
-private fun tabToModel(tab: OpenTabProto): OpenTab =
-    OpenTab(
-        path = WorkspacePath.parse(tab.path),
-        cursorLine = tab.cursorLine,
-        cursorCol = tab.cursorCol,
-    )
+private fun tabToModel(tab: OpenTabProto): OpenTab? {
+    val path = parsePathOrNull(tab.path) ?: return null
+    return OpenTab(path, tab.cursorLine, tab.cursorCol)
+}
+
+private fun parsePathOrNull(raw: String): WorkspacePath? =
+    runCatching { WorkspacePath.parse(raw) }.getOrNull()
 
 private inline fun <reified T : Enum<T>> enumOrDefault(
     present: Boolean,
@@ -65,5 +68,5 @@ private inline fun <reified T : Enum<T>> enumOrDefault(
     default: T,
 ): T {
     if (!present || raw.isEmpty()) return default
-    return runCatching { java.lang.Enum.valueOf(T::class.java, raw) }.getOrDefault(default)
+    return runCatching { enumValueOf<T>(raw) }.getOrDefault(default)
 }

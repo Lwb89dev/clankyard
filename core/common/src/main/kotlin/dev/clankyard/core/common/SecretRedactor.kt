@@ -24,7 +24,8 @@ object SecretRedactor {
 
     fun wrap(error: Throwable): Throwable {
         val cause = error.cause?.let(::wrap)
-        return Throwable(redact(error.message.orEmpty()), cause).also { copy ->
+        val msg = "${error::class.java.name}: ${redact(error.message.orEmpty())}"
+        return Throwable(msg, cause).also { copy ->
             copy.stackTrace = error.stackTrace
         }
     }

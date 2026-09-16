@@ -2,6 +2,7 @@ package dev.clankyard.core.ui
 
 import dev.clankyard.core.model.WorkspaceId
 import dev.clankyard.core.model.WorkspacePath
+import dev.clankyard.core.ui.proto.OpenTabProto
 import dev.clankyard.core.ui.proto.WorkspaceUiStateProto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -55,5 +56,24 @@ class WorkspaceUiStateMapperTest {
         val bytes = original.toProto().toByteArray()
         val restored = WorkspaceUiStateProto.parseFrom(bytes).toModel()
         assertEquals(original, restored)
+    }
+
+    @Test
+    fun rootActivePathRoundTrips() {
+        val original = WorkspaceUiState(activePath = WorkspacePath.ROOT)
+        assertEquals(WorkspacePath.ROOT, original.toProto().toModel().activePath)
+    }
+
+    @Test
+    fun skipsIllegalTabsAndNullsBadActivePath() {
+        val proto = WorkspaceUiStateProto.newBuilder()
+            .setActivePath("../etc")
+            .addTabs(OpenTabProto.newBuilder().setPath("ok.txt").setCursorLine(1).setCursorCol(0))
+            .addTabs(OpenTabProto.newBuilder().setPath("a/../b").setCursorLine(2).setCursorCol(0))
+            .build()
+        val model = proto.toModel()
+        assertNull(model.activePath)
+        assertEquals(1, model.tabs.size)
+        assertEquals("ok.txt", model.tabs.single().path.relative)
     }
 }

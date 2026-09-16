@@ -7,29 +7,19 @@ interface RedactingLogger {
     fun e(tag: String, message: String, t: Throwable? = null)
 }
 
-fun interface LogSink {
-    enum class Level { DEBUG, INFO, WARN, ERROR }
-
-    fun log(level: Level, tag: String, message: String, throwable: Throwable?)
-}
-
 class DefaultRedactingLogger(
-    private val sink: LogSink,
+    private val emit: (level: String, tag: String, message: String, throwable: Throwable?) -> Unit,
 ) : RedactingLogger {
-    override fun d(tag: String, message: String) {
-        sink.log(LogSink.Level.DEBUG, prefix(tag), SecretRedactor.redact(message), null)
-    }
+    override fun d(tag: String, message: String) = log("DEBUG", tag, message, null)
 
-    override fun i(tag: String, message: String) {
-        sink.log(LogSink.Level.INFO, prefix(tag), SecretRedactor.redact(message), null)
-    }
+    override fun i(tag: String, message: String) = log("INFO", tag, message, null)
 
-    override fun w(tag: String, message: String, t: Throwable?) {
-        sink.log(LogSink.Level.WARN, prefix(tag), SecretRedactor.redact(message), t?.let(SecretRedactor::wrap))
-    }
+    override fun w(tag: String, message: String, t: Throwable?) = log("WARN", tag, message, t)
 
-    override fun e(tag: String, message: String, t: Throwable?) {
-        sink.log(LogSink.Level.ERROR, prefix(tag), SecretRedactor.redact(message), t?.let(SecretRedactor::wrap))
+    override fun e(tag: String, message: String, t: Throwable?) = log("ERROR", tag, message, t)
+
+    private fun log(level: String, tag: String, message: String, t: Throwable?) {
+        emit(level, prefix(tag), SecretRedactor.redact(message), t?.let(SecretRedactor::wrap))
     }
 }
 

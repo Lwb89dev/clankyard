@@ -1,6 +1,6 @@
 package dev.clankyard.core.model
 
-/** Secret value type. No store. Lives in `:core:model` so `:ai:provider-api` need not depend on `:core:security`. */
+/** Secret value. `toString()` never includes the secret. */
 sealed interface Credential {
     data class ApiKey(val secret: String) : Credential {
         override fun toString() = "ApiKey(****)"

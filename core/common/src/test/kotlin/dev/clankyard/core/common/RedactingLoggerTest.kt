@@ -49,12 +49,14 @@ class RedactingLoggerTest {
     }
 
     @Test
-    fun redactsCauseMessage() {
+    fun redactsCauseMessageAndKeepsClassName() {
         val cause = IllegalStateException("upstream Bearer sk-ant-secret-value failed")
         val wrapped = SecretRedactor.wrap(RuntimeException("call failed", cause))
-        assertFalse(wrapped.cause!!.message!!.contains("sk-ant-secret-value"))
-        assertFalse(wrapped.cause!!.message!!.contains("Bearer sk-ant"))
-        assertTrue(wrapped.cause!!.message!!.contains("[REDACTED]"))
+        val causeMsg = wrapped.cause!!.message!!
+        assertTrue(causeMsg.startsWith("java.lang.IllegalStateException:"))
+        assertFalse(causeMsg.contains("sk-ant-secret-value"))
+        assertFalse(causeMsg.contains("Bearer sk-ant"))
+        assertTrue(causeMsg.contains("[REDACTED]"))
     }
 
     @Test
@@ -66,12 +68,14 @@ class RedactingLoggerTest {
         logger.e("http", "Authorization: Bearer sk-live-abc", IllegalStateException("api_key=leak"))
         assertEquals(1, records.size)
         val rec = records.single()
+        assertEquals("ERROR", rec.level)
         assertEquals("clankyard.http", rec.tag)
         assertFalse(rec.message.contains("sk-live-abc"))
         assertTrue(rec.message.contains("[REDACTED]"))
         val thrown = rec.throwable ?: error("expected throwable")
         assertFalse(thrown.message.orEmpty().contains("leak"))
         assertTrue(thrown.message.orEmpty().contains("[REDACTED]"))
+        assertTrue(thrown.message.orEmpty().contains("IllegalStateException"))
     }
 
     @Test
@@ -80,7 +84,7 @@ class RedactingLoggerTest {
     }
 
     private data class Record(
-        val level: LogSink.Level,
+        val level: String,
         val tag: String,
         val message: String,
         val throwable: Throwable?,

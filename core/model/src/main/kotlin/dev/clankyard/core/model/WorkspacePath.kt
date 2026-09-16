@@ -16,7 +16,6 @@ value class WorkspacePath private constructor(val relative: String) {
          * Parse a tool/UI string. Rejects `\`, NUL, ISO control, `:`, leading `/`,
          * trailing `/` (except root), `.` / `..` / empty intermediate segments,
          * Unicode dots U+2024 / U+FF0E.
-         * Tools must parse **only** through this function, never `File(args["path"])`.
          */
         fun parse(raw: String): WorkspacePath {
             if (raw.isEmpty() || raw == "/") return ROOT
