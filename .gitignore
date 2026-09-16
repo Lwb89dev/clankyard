@@ -1,0 +1,43 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Kotlin
+.kotlin/
+
+# Local SDK / IDE
+local.properties
+*.iml
+.idea/
+.vscode/
+*.swp
+
+# Android
+captures/
+.externalNativeBuild/
+.cxx/
+output.json
+*.apk
+*.aar
+*.ap_
+*.aab
+*.dex
+bin/
+gen/
+out/
+
+# Secrets — never commit keys or debug overlays
+secrets.properties
+*.jks
+*.keystore
+!debug.keystore
+
+# OS / misc
+.DS_Store
+*.log
+*.hprof
+*.orig
+*~
+
+# Do not ignore repo-root icon.png (canonical Clanker art)

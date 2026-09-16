@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+option java_package = "dev.clankyard.core.ui.proto";
+option java_multiple_files = true;
+
+message WorkspaceUiStateProto {
+  optional string workspace_id = 1;
+  repeated OpenTabProto tabs = 2;
+  optional string active_path = 3;
+  optional float files_weight = 4;
+  optional float editor_weight = 5;
+  optional float clanker_weight = 6;
+  optional float bottom_weight = 7;
+  optional bool files_collapsed = 8;
+  optional bool clanker_visible = 9;
+  optional bool bottom_collapsed = 10;
+  optional string bottom_tab = 11;
+  optional string last_size_class = 12;
+}
+
+message OpenTabProto {
+  string path = 1;
+  int32 cursor_line = 2;
+  int32 cursor_col = 3;
+}
