@@ -6,10 +6,13 @@ import dev.clankyard.core.model.WorkspaceId
 import dev.clankyard.core.model.WorkspacePath
 import dev.clankyard.diff.MyersDiffEngine
 import dev.clankyard.workspace.DiskFileBackedWorkspace
+import dev.clankyard.workspace.FileBackedWorkspace
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume
@@ -68,14 +71,12 @@ class WorkspacePatchEngineTest {
     fun unifiedWithoutAfterUtf8IsRejected() {
         val env = open()
         File(env.root, "a.txt").writeText("old\n")
-        val unified = "--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new\n"
         val set = env.validate(
             ProposedEdit.parse(
                 path = "a.txt",
                 kind = EditKind.Replace,
                 expectedHash = env.hash(path("a.txt")),
                 afterUtf8 = null,
-                unifiedDiff = unified,
             ),
         )
         val diff = set.diffs.single()
@@ -210,7 +211,7 @@ class WorkspacePatchEngineTest {
         val set = env.validate(
             ProposedEdit.parse("a.txt", EditKind.Replace, env.hash(a), "after"),
         )
-        assertTrue(set.label.startsWith("Clanker change #"))
+        assertEquals("Clanker change", set.label)
         val applied = env.apply(set.id, setOf(a)) as ApplyResult.Applied
         assertEquals("after", File(env.root, "a.txt").readText())
         val undone = runBlocking { env.engine.undo(applied.id) }
@@ -262,19 +263,85 @@ class WorkspacePatchEngineTest {
     }
 
     @Test
-    fun factoryCreatesEngine() {
+    fun factoryCachesEnginePerWorkspaceId() {
         val env = open()
         File(env.root, "f.txt").writeText("x")
-        val factory = PatchEngineFactory { WorkspacePatchEngine(it, MyersDiffEngine()) }
-        val engine = factory.create(env.ws)
+        val factory = CachingPatchEngineFactory(MyersDiffEngine())
+        val first = factory.create(env.ws)
+        val second = factory.create(env.ws)
+        assertSame(first, second)
+        val other = DiskFileBackedWorkspace(
+            WorkspaceId("other"),
+            "other",
+            tmp.newFolder("other-root"),
+            tmp.newFolder("other-journal"),
+        )
+        assertTrue(first !== factory.create(other))
         val set = runBlocking {
-            engine.validateAndDiff(
+            first.validateAndDiff(
                 listOf(ProposedEdit.parse("f.txt", EditKind.Replace, env.hash(path("f.txt")), "y")),
             )
         }
         assertNotNull(set.id)
-        assertEquals(1, set.diffs.size)
-        assertFalse(set.diffs.single().conflict)
+        val applied = runBlocking {
+            ApplyPatchUseCase(second).invoke(set.id, setOf(path("f.txt")), emptySet())
+        }
+        assertTrue(applied is ApplyResult.Applied)
+        assertEquals("y", File(env.root, "f.txt").readText())
+    }
+
+    @Test
+    fun renameDestOverlapIsConflictAtClassify() {
+        val env = open()
+        File(env.root, "from.txt").writeText("body")
+        val set = env.validate(
+            ProposedEdit.parse("dest.txt", EditKind.Create, null, "new\n"),
+            ProposedEdit.parse("from.txt", EditKind.Rename, env.hash(path("from.txt")), renameTo = "dest.txt"),
+        )
+        assertFalse(set.diffs[0].conflict)
+        assertTrue(set.diffs[1].conflict)
+        assertEquals("duplicate path", set.diffs[1].conflictReason)
+        val applied = env.apply(set.id, setOf(path("dest.txt"), path("from.txt")))
+        assertTrue(applied is ApplyResult.Applied)
+        assertEquals("new\n", File(env.root, "dest.txt").readText())
+        assertEquals("body", File(env.root, "from.txt").readText())
+    }
+
+    @Test
+    fun cancelledReadIsRethrown() {
+        val env = open()
+        File(env.root, "a.txt").writeText("a")
+        val cancel = CancellationException("cancelled")
+        val wrapped = object : FileBackedWorkspace by env.ws {
+            override suspend fun readUtf8(path: WorkspacePath, maxBytes: Long): String {
+                throw cancel
+            }
+        }
+        val engine = WorkspacePatchEngine(wrapped, MyersDiffEngine())
+        try {
+            runBlocking {
+                engine.validateAndDiff(
+                    listOf(ProposedEdit.parse("a.txt", EditKind.Replace, env.hash(path("a.txt")), "b")),
+                )
+            }
+            throw AssertionError("expected CancellationException")
+        } catch (e: CancellationException) {
+            assertSame(cancel, e)
+        }
+    }
+
+    @Test
+    fun newEngineUndoesFromJournalChangeNumber() {
+        val env = open()
+        File(env.root, "a.txt").writeText("before")
+        val a = path("a.txt")
+        val set = env.validate(ProposedEdit.parse("a.txt", EditKind.Replace, env.hash(a), "after"))
+        assertTrue(env.apply(set.id, setOf(a)) is ApplyResult.Applied)
+        val change = env.ws.journal.listChanges().single()
+        val engine2 = WorkspacePatchEngine(env.ws, MyersDiffEngine())
+        val undone = runBlocking { engine2.undo(PatchSetId(change.changeNumber.toString())) }
+        assertTrue(undone is ApplyResult.Applied)
+        assertEquals("before", File(env.root, "a.txt").readText())
     }
 
     private fun open(): Env {

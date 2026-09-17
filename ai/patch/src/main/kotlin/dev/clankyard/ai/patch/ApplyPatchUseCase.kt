@@ -8,6 +8,6 @@ class ApplyPatchUseCase(private val engine: PatchEngine) {
     suspend operator fun invoke(
         id: PatchSetId,
         accepted: Set<WorkspacePath>,
-        dirty: Set<WorkspacePath> = emptySet(),
+        dirty: Set<WorkspacePath>,
     ): ApplyResult = engine.apply(id, accepted, dirty)
 }

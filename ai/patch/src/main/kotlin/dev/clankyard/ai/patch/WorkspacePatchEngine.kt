@@ -10,6 +10,7 @@ import dev.clankyard.workspace.FileTooLargeException
 import dev.clankyard.workspace.JournalApplyResult
 import dev.clankyard.workspace.JournalOp
 import dev.clankyard.workspace.Utf8BomDetectedException
+import kotlinx.coroutines.CancellationException
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
@@ -24,7 +25,12 @@ class WorkspacePatchEngine(
     private val lock = Any()
     private val pending = LinkedHashMap<PatchSetId, StoredPatch>()
     private val applied = LinkedHashMap<PatchSetId, AppliedPatch>()
-    private var seq = 0
+
+    init {
+        for (change in workspace.journal.listChanges()) {
+            applied[PatchSetId(change.changeNumber.toString())] = AppliedPatch(change.changeNumber)
+        }
+    }
 
     override suspend fun validateAndDiff(edits: List<ProposedEdit>): PatchSet {
         val diffs = ArrayList<FileDiff>(edits.size)
@@ -36,11 +42,8 @@ class WorkspacePatchEngine(
             if (!diff.conflict) applicable += edit
         }
         val id = PatchSetId(UUID.randomUUID().toString())
-        val set: PatchSet
-        synchronized(lock) {
-            set = PatchSet(id, "Clanker change #${++seq}", diffs, edits)
-            pending[id] = StoredPatch(applicable)
-        }
+        val set = PatchSet(id, "Clanker change", diffs, edits)
+        synchronized(lock) { pending[id] = StoredPatch(applicable) }
         return set
     }
 
@@ -64,7 +67,7 @@ class WorkspacePatchEngine(
         val rec = synchronized(lock) { applied[id] } ?: return ApplyResult.Failed("no such applied change")
         return when (val result = workspace.journal.undo(rec.changeNumber)) {
             is JournalApplyResult.Applied -> {
-                synchronized(lock) { applied.remove(id) }
+                synchronized(lock) { dropApplied(rec.changeNumber) }
                 ApplyResult.Applied(id, result.paths)
             }
             is JournalApplyResult.Failed -> ApplyResult.Failed(result.reason)
@@ -74,9 +77,10 @@ class WorkspacePatchEngine(
     private suspend fun classify(edit: ProposedEdit, seen: MutableSet<WorkspacePath>): FileDiff {
         gnuPatchReject(edit)?.let { return it }
         if (!seen.add(edit.path)) return conflict(edit.path, "", "duplicate path")
-        reparseConflict(edit)?.let { return it }
         fieldConflict(edit)?.let { return it }
-        if (escapes(edit.path) || (edit.renameTo != null && escapes(edit.renameTo))) {
+        val to = edit.renameTo
+        if (to != null && !seen.add(to)) return conflict(edit.path, "", "duplicate path")
+        if (escapes(edit.path) || (to != null && escapes(to))) {
             return conflict(edit.path, "", "path escapes workspace")
         }
         return when (edit.kind) {
@@ -89,18 +93,7 @@ class WorkspacePatchEngine(
     private fun gnuPatchReject(edit: ProposedEdit): FileDiff? {
         if (edit.kind == EditKind.Rename) return null
         if (edit.afterUtf8 != null) return null
-        return FileDiff(edit.path, edit.unifiedDiff.orEmpty(), true, GNU_PATCH_REJECTED)
-    }
-
-    private fun reparseConflict(edit: ProposedEdit): FileDiff? {
-        try {
-            WorkspacePath.parse(edit.path.relative)
-            val to = edit.renameTo ?: return null
-            WorkspacePath.parse(to.relative)
-            return null
-        } catch (_: IllegalArgumentException) {
-            return conflict(edit.path, "", "illegal path")
-        }
+        return FileDiff(edit.path, "", true, GNU_PATCH_REJECTED)
     }
 
     private fun fieldConflict(edit: ProposedEdit): FileDiff? {
@@ -183,6 +176,8 @@ class WorkspacePatchEngine(
             Before("", hash, "binary file")
         } catch (_: FileTooLargeException) {
             Before("", hash, "file too large")
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Before("", hash, e.message ?: "unreadable")
         }
@@ -225,11 +220,17 @@ class WorkspacePatchEngine(
                 synchronized(lock) {
                     pending.remove(id)
                     applied[id] = AppliedPatch(result.changeNumber)
+                    applied[PatchSetId(result.changeNumber.toString())] = AppliedPatch(result.changeNumber)
                 }
                 ApplyResult.Applied(id, result.paths)
             }
             is JournalApplyResult.Failed -> ApplyResult.Failed(result.reason)
         }
+    }
+
+    private fun dropApplied(changeNumber: Int) {
+        val keys = applied.filterValues { it.changeNumber == changeNumber }.keys.toList()
+        for (key in keys) applied.remove(key)
     }
 
     private fun missing(id: PatchSetId): ApplyResult.Failed {

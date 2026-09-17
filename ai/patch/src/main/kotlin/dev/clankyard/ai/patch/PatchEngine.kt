@@ -13,8 +13,6 @@ data class ProposedEdit(
     val expectedHash: ContentHash?,
     val afterUtf8: String? = null,
     val renameTo: WorkspacePath? = null,
-    /** If set without [afterUtf8] for Create/Replace, validateAndDiff rejects (no GNU-patch apply). */
-    val unifiedDiff: String? = null,
 ) {
     companion object {
         fun parse(
@@ -23,14 +21,12 @@ data class ProposedEdit(
             expectedHash: ContentHash?,
             afterUtf8: String? = null,
             renameTo: String? = null,
-            unifiedDiff: String? = null,
         ): ProposedEdit = ProposedEdit(
             path = WorkspacePath.parse(path),
             kind = kind,
             expectedHash = expectedHash,
             afterUtf8 = afterUtf8,
             renameTo = renameTo?.let(WorkspacePath::parse),
-            unifiedDiff = unifiedDiff,
         )
     }
 }
@@ -69,7 +65,7 @@ interface PatchEngine {
     suspend fun apply(
         id: PatchSetId,
         accepted: Set<WorkspacePath>,
-        dirty: Set<WorkspacePath> = emptySet(),
+        dirty: Set<WorkspacePath>,
     ): ApplyResult
 
     suspend fun reject(id: PatchSetId)

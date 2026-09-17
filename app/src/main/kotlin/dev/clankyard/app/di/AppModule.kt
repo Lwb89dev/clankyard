@@ -11,8 +11,8 @@ import dev.clankyard.core.common.DefaultRedactingLogger
 import dev.clankyard.core.common.RedactingLogger
 import dev.clankyard.core.ui.DataStoreWorkspaceUiStore
 import dev.clankyard.core.ui.WorkspaceUiStore
+import dev.clankyard.ai.patch.CachingPatchEngineFactory
 import dev.clankyard.ai.patch.PatchEngineFactory
-import dev.clankyard.ai.patch.WorkspacePatchEngine
 import dev.clankyard.diff.DiffEngine
 import dev.clankyard.diff.MyersDiffEngine
 import dev.clankyard.feature.workspacepicker.AndroidWorkspaceIo
@@ -74,5 +74,5 @@ object AppModule {
     @Provides
     @Singleton
     fun providePatchEngineFactory(diffEngine: DiffEngine): PatchEngineFactory =
-        PatchEngineFactory { WorkspacePatchEngine(it, diffEngine) }
+        CachingPatchEngineFactory(diffEngine)
 }
