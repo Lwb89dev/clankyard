@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlin.time.Duration.Companion.milliseconds
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -128,6 +129,45 @@ class OpenAICompletionsAdapterTest {
             withTimeout(5_000) { job.join() }
             assertTrue(events.none { it is ChatEvent.Completed })
             assertTrue(events.none { it is ChatEvent.Delta })
+        } finally {
+            released.countDown()
+        }
+    }
+
+    @Test
+    fun compatibleKeyIn401BodyIsRedacted() = runBlocking {
+        val key = "compat-secret-key"
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(401)
+                .setBody("""{"error":{"message":"bad key $key"}}"""),
+        )
+        val events = adapter().chat(sampleRequest(), Credential.ApiKey(key)).toList()
+        val error = events.filterIsInstance<ChatEvent.Error>().single()
+        assertFalse(error.message.contains(key))
+        assertTrue(error.message.contains("[REDACTED]"))
+        assertFalse(error.retryable)
+    }
+
+    @Test
+    fun hangingSseTimesOut() = runBlocking {
+        val released = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                released.await(30, TimeUnit.SECONDS)
+                return sse(OPENAI_SSE)
+            }
+        }
+        val adapter = OpenAICompletionsAdapter(
+            client,
+            server.url("/v1"),
+            streamWallClock = 200.milliseconds,
+        )
+        try {
+            val events = adapter.chat(sampleRequest(), credential).toList()
+            val error = events.filterIsInstance<ChatEvent.Error>().single()
+            assertTrue(error.retryable)
+            assertTrue(error.message.contains("timed out"))
         } finally {
             released.countDown()
         }

@@ -39,20 +39,10 @@ import kotlinx.coroutines.job
  * Callers pass [Credential] into [listModels] / [chat].
  */
 class FakeLlmProvider(
+    private val events: List<ChatEvent> = DEFAULT_EVENTS,
     var models: List<ModelInfo> = listOf(DEFAULT_MODEL),
-    private val produce: suspend FlowCollector<ChatEvent>.(ChatRequest) -> Unit = DefaultScript,
+    private val betweenEvents: suspend () -> Unit = {},
 ) : LlmProvider {
-    constructor(events: List<ChatEvent>) : this(
-        produce = {
-            for (event in events) emit(event)
-        },
-    )
-
-    constructor(
-        events: List<ChatEvent>,
-        betweenEvents: suspend () -> Unit,
-    ) : this(produce = scripted(events, betweenEvents))
-
     override val id: ProviderId = ProviderId("fake")
     override val displayName: String = "Fake"
     override val authenticationKind: AuthenticationKind = AuthenticationKind.ApiKey
@@ -70,7 +60,7 @@ class FakeLlmProvider(
             val job = currentCoroutineContext().job
             inFlight[request.requestId] = job
             try {
-                produce(request)
+                emitScript()
             } finally {
                 inFlight.remove(request.requestId, job)
             }
@@ -81,6 +71,14 @@ class FakeLlmProvider(
         inFlight[requestId]?.cancel()
     }
 
+    private suspend fun FlowCollector<ChatEvent>.emitScript() {
+        for (event in events) {
+            currentCoroutineContext().ensureActive()
+            emit(event)
+            betweenEvents()
+        }
+    }
+
     companion object {
         val DEFAULT_MODEL = ModelInfo(
             id = "fake-model",
@@ -89,25 +87,14 @@ class FakeLlmProvider(
             supportsTools = true,
             supportsStreaming = true,
         )
-        val DefaultScript: suspend FlowCollector<ChatEvent>.(ChatRequest) -> Unit = {
-            emit(ChatEvent.Delta("hello from fake"))
-            emit(ChatEvent.Completed)
-        }
+        val DEFAULT_EVENTS = listOf(
+            ChatEvent.Delta("hello from fake"),
+            ChatEvent.Completed,
+        )
     }
 }
 
 private fun requireApiKeyDropped(credential: Credential) {
     val secret = (credential as? Credential.ApiKey)?.secret
     require(!secret.isNullOrBlank()) { "API key required" }
-}
-
-internal fun scripted(
-    events: List<ChatEvent>,
-    betweenEvents: suspend () -> Unit,
-): suspend FlowCollector<ChatEvent>.(ChatRequest) -> Unit = {
-    for (event in events) {
-        currentCoroutineContext().ensureActive()
-        emit(event)
-        betweenEvents()
-    }
 }

@@ -9,14 +9,22 @@ import dev.clankyard.core.model.AuthenticationKind
 import dev.clankyard.core.model.Credential
 import dev.clankyard.core.model.ProviderId
 import dev.clankyard.core.model.RequestId
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -34,6 +42,8 @@ class AnthropicProviderTest {
 
     @After
     fun tearDown() {
+        client.dispatcher.cancelAll()
+        client.connectionPool.evictAll()
         server.shutdown()
     }
 
@@ -103,6 +113,34 @@ class AnthropicProviderTest {
         val error = events.filterIsInstance<ChatEvent.Error>().single()
         assertFalse(error.retryable)
         assertFalse(error.message.contains("sk-ant-test-secret"))
+    }
+
+    @Test
+    fun cancelAbortsOkHttpCall() = runBlocking {
+        val released = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                released.await(30, TimeUnit.SECONDS)
+                return MockResponse()
+                    .setHeader("Content-Type", "text/event-stream")
+                    .setBody(ANTHROPIC_SSE)
+            }
+        }
+        val provider = AnthropicProvider(client, server.url("/v1"))
+        val request = sampleRequest()
+        val events = mutableListOf<ChatEvent>()
+        val job = launch(Dispatchers.IO) {
+            provider.chat(request, credential).collect { events += it }
+        }
+        try {
+            assertNotNull(server.takeRequest(2, TimeUnit.SECONDS))
+            provider.cancel(request.requestId)
+            withTimeout(5_000) { job.join() }
+            assertTrue(events.none { it is ChatEvent.Completed })
+            assertTrue(events.none { it is ChatEvent.Delta })
+        } finally {
+            released.countDown()
+        }
     }
 }
 

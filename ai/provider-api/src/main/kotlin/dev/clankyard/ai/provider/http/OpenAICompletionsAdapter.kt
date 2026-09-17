@@ -10,12 +10,10 @@ import dev.clankyard.ai.provider.ToolSpec
 import dev.clankyard.core.model.Credential
 import dev.clankyard.core.model.RequestId
 import java.io.IOException
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.TimeoutCancellationException
+import kotlin.time.Duration
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -38,6 +36,7 @@ class OpenAICompletionsAdapter(
     client: OkHttpClient,
     private val root: HttpUrl,
     private val calls: InFlightCalls = InFlightCalls(),
+    private val streamWallClock: Duration = ProviderHttp.STREAM_WALL_CLOCK,
 ) {
     private val listClient = ProviderHttp.listClient(client)
     private val streamClient = ProviderHttp.streamingClient(client)
@@ -51,7 +50,7 @@ class OpenAICompletionsAdapter(
             .get()
             .build()
         listClient.newCall(request).await().use { response ->
-            if (!response.isSuccessful) throw httpException(response)
+            if (!response.isSuccessful) throw IOException(httpErrorEvent(response, apiKey).message)
             return parseModels(response.body?.string().orEmpty())
         }
     }
@@ -59,7 +58,7 @@ class OpenAICompletionsAdapter(
     fun chat(request: ChatRequest, credential: Credential): Flow<ChatEvent> {
         val apiKey = requireApiKey(credential)
         val httpRequest = completionsRequest(request, apiKey)
-        return flow { collectChat(request.requestId, httpRequest) }
+        return flow { collectChat(request.requestId, httpRequest, apiKey) }
     }
 
     suspend fun cancel(requestId: RequestId) {
@@ -69,31 +68,26 @@ class OpenAICompletionsAdapter(
     private suspend fun FlowCollector<ChatEvent>.collectChat(
         requestId: RequestId,
         httpRequest: Request,
+        apiKey: String,
     ) {
         val client = if (httpRequest.header("Accept") == SSE_ACCEPT) streamClient else listClient
         val call = client.newCall(httpRequest)
         calls.register(requestId, call)
         try {
-            withTimeout(ProviderHttp.STREAM_WALL_CLOCK) {
-                call.await().use { response -> emitFromResponse(response) }
+            collectHttpCall(call, streamWallClock) {
+                call.await().use { response -> emitFromResponse(response, apiKey) }
             }
-        } catch (e: TimeoutCancellationException) {
-            call.cancel()
-            emit(ChatEvent.Error("stream timed out", retryable = true, cause = e))
-        } catch (e: CancellationException) {
-            call.cancel()
-            throw e
-        } catch (e: IOException) {
-            if (call.isCanceled()) throw CancellationException("cancelled", e)
-            emit(redactedIoError(e))
         } finally {
             calls.remove(requestId)
         }
     }
 
-    private suspend fun FlowCollector<ChatEvent>.emitFromResponse(response: Response) {
+    private suspend fun FlowCollector<ChatEvent>.emitFromResponse(
+        response: Response,
+        apiKey: String,
+    ) {
         if (!response.isSuccessful) {
-            emit(httpErrorEvent(response))
+            emit(httpErrorEvent(response, apiKey))
             return
         }
         val source = response.body?.source()

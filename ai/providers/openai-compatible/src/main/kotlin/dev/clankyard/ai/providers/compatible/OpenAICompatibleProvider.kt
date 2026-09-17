@@ -5,6 +5,7 @@ import dev.clankyard.ai.provider.ChatRequest
 import dev.clankyard.ai.provider.LlmProvider
 import dev.clankyard.ai.provider.ModelInfo
 import dev.clankyard.ai.provider.http.OpenAICompletionsAdapter
+import dev.clankyard.ai.provider.http.ProviderHttp
 import dev.clankyard.ai.provider.http.normalizeCompletionsRoot
 import dev.clankyard.core.model.AuthenticationKind
 import dev.clankyard.core.model.Credential
@@ -34,7 +35,6 @@ data class TofuCertSummary(
  * TOFU probe is a TLS handshake **without** an Authorization header.
  */
 class OpenAICompatibleProvider internal constructor(
-    private val client: OkHttpClient,
     private val adapter: OpenAICompletionsAdapter,
     private val root: HttpUrl,
 ) : LlmProvider {
@@ -43,8 +43,7 @@ class OpenAICompatibleProvider internal constructor(
         normalizeCompletionsRoot(baseUrl),
     )
 
-    constructor(client: OkHttpClient, root: HttpUrl) : this(
-        client,
+    internal constructor(client: OkHttpClient, root: HttpUrl) : this(
         OpenAICompletionsAdapter(client, root),
         root,
     )
@@ -71,10 +70,7 @@ class OpenAICompatibleProvider internal constructor(
             .get()
             .build()
         check(request.header("Authorization") == null)
-        val probeClient = client.newBuilder()
-            .followRedirects(false)
-            .followSslRedirects(false)
-            .build()
+        val probeClient = ProviderHttp.tofuProbeClient()
         return withContext(Dispatchers.IO) {
             probeClient.newCall(request).execute().use { response ->
                 val cert = response.handshake?.peerCertificates?.firstOrNull() as? X509Certificate

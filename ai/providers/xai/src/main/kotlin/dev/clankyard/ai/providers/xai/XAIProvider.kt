@@ -26,7 +26,7 @@ class XAIProvider internal constructor(
         origin: String = DEFAULT_ORIGIN,
     ) : this(OpenAICompletionsAdapter(client, normalizeCompletionsRoot(origin)))
 
-    constructor(client: OkHttpClient, root: HttpUrl) : this(
+    internal constructor(client: OkHttpClient, root: HttpUrl) : this(
         OpenAICompletionsAdapter(client, root),
     )
 

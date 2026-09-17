@@ -1,23 +1,24 @@
 package dev.clankyard.ai.provider.http
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.runInterruptible
 import okio.BufferedSource
-
-fun interface SseHandler {
-    suspend fun onEvent(event: String, data: String)
-}
 
 /**
  * Minimal SSE reader. Does not buffer the whole body.
- * [Call.cancel] closing the source unblocks [BufferedSource.readUtf8Line].
+ * [okhttp3.Call.cancel] closing the source unblocks [BufferedSource.readUtf8Line].
+ * [runInterruptible] lets coroutine cancellation interrupt a stalled read.
  */
-suspend fun BufferedSource.consumeSse(handler: SseHandler) {
+suspend fun BufferedSource.consumeSse(
+    handler: suspend (event: String, data: String) -> Unit,
+) {
     var event = ""
     val data = StringBuilder()
     while (true) {
         currentCoroutineContext().ensureActive()
-        val line = readUtf8Line() ?: break
+        val line = runInterruptible(Dispatchers.IO) { readUtf8Line() } ?: break
         when {
             line.isEmpty() -> flushSse(event, data, handler).also { event = "" }
             line.startsWith(":") -> Unit
@@ -25,12 +26,16 @@ suspend fun BufferedSource.consumeSse(handler: SseHandler) {
             line.startsWith("data:") -> appendData(data, line)
         }
     }
-    if (data.isNotEmpty()) handler.onEvent(event, data.toString())
+    if (data.isNotEmpty()) handler(event, data.toString())
 }
 
-private suspend fun flushSse(event: String, data: StringBuilder, handler: SseHandler) {
+private suspend fun flushSse(
+    event: String,
+    data: StringBuilder,
+    handler: suspend (String, String) -> Unit,
+) {
     if (data.isEmpty()) return
-    handler.onEvent(event, data.toString())
+    handler(event, data.toString())
     data.clear()
 }
 

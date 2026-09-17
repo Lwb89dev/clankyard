@@ -26,7 +26,7 @@ class OpenAIProvider internal constructor(
         baseUrl: String = DEFAULT_BASE_URL,
     ) : this(OpenAICompletionsAdapter(client, normalizeCompletionsRoot(baseUrl)))
 
-    constructor(client: OkHttpClient, root: HttpUrl) : this(
+    internal constructor(client: OkHttpClient, root: HttpUrl) : this(
         OpenAICompletionsAdapter(client, root),
     )
 
