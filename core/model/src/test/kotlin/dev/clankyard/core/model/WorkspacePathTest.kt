@@ -91,6 +91,19 @@ class WorkspacePathTest {
         assertIllegal("foo\nbar")
     }
 
+    @Test
+    fun parentNameAndChild() {
+        val nested = WorkspacePath.parse("src/app/Main.kt")
+        assertEquals("Main.kt", nested.name)
+        assertEquals("src/app", nested.parent().relative)
+        assertEquals("src", nested.parent().parent().relative)
+        assertTrue(nested.parent().parent().parent().isRoot)
+        assertTrue(WorkspacePath.ROOT.parent().isRoot)
+        assertEquals("", WorkspacePath.ROOT.name)
+        assertEquals("src/app/Main.kt", WorkspacePath.parse("src/app").child("Main.kt").relative)
+        assertEquals("Main.kt", WorkspacePath.ROOT.child("Main.kt").relative)
+    }
+
     private fun assertIllegal(raw: String) {
         assertThrows(IllegalArgumentException::class.java) {
             WorkspacePath.parse(raw)

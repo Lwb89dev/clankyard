@@ -9,6 +9,22 @@ package dev.clankyard.core.model
 value class WorkspacePath private constructor(val relative: String) {
     val isRoot: Boolean get() = relative.isEmpty()
 
+    /** Last segment; empty for [ROOT]. */
+    val name: String
+        get() = if (isRoot) "" else relative.substringAfterLast('/')
+
+    fun parent(): WorkspacePath {
+        if (isRoot) return ROOT
+        val slash = relative.lastIndexOf('/')
+        if (slash < 0) return ROOT
+        return parse(relative.substring(0, slash))
+    }
+
+    fun child(segment: String): WorkspacePath {
+        if (isRoot) return parse(segment)
+        return parse("$relative/$segment")
+    }
+
     companion object {
         val ROOT = WorkspacePath("")
 

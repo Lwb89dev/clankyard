@@ -13,6 +13,8 @@ import dev.clankyard.core.ui.DataStoreWorkspaceUiStore
 import dev.clankyard.core.ui.WorkspaceUiStore
 import dev.clankyard.feature.workspacepicker.AndroidWorkspaceIo
 import dev.clankyard.feature.workspacepicker.DefaultAndroidWorkspaceIo
+import dev.clankyard.search.InProcessProjectSearch
+import dev.clankyard.search.ProjectSearch
 import dev.clankyard.workspace.FileWorkspaceRegistry
 import dev.clankyard.workspace.WorkshopTreeOps
 import java.io.File
@@ -56,4 +58,8 @@ object AppModule {
         @ApplicationContext context: Context,
         registry: FileWorkspaceRegistry,
     ): AndroidWorkspaceIo = DefaultAndroidWorkspaceIo(context, registry)
+
+    @Provides
+    @Singleton
+    fun provideProjectSearch(): ProjectSearch = InProcessProjectSearch()
 }
