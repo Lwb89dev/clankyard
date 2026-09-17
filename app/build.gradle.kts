@@ -42,6 +42,7 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:common"))
     implementation(project(":core:ui"))
+    implementation(project(":core:security"))
     implementation(project(":workspace"))
     implementation(project(":feature:workspace-picker"))
     implementation(libs.hilt.android)
@@ -50,4 +51,5 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.navigation.compose)
     coreLibraryDesugaring(libs.desugar.jdk)
+    testImplementation(libs.junit)
 }
