@@ -11,6 +11,11 @@ import dev.clankyard.core.common.DefaultRedactingLogger
 import dev.clankyard.core.common.RedactingLogger
 import dev.clankyard.core.ui.DataStoreWorkspaceUiStore
 import dev.clankyard.core.ui.WorkspaceUiStore
+import dev.clankyard.feature.workspacepicker.AndroidWorkspaceIo
+import dev.clankyard.feature.workspacepicker.DefaultAndroidWorkspaceIo
+import dev.clankyard.workspace.FileWorkspaceRegistry
+import dev.clankyard.workspace.WorkshopTreeOps
+import java.io.File
 import javax.inject.Singleton
 
 @Module
@@ -32,4 +37,23 @@ object AppModule {
     @Singleton
     fun provideWorkspaceUiStore(@ApplicationContext context: Context): WorkspaceUiStore =
         DataStoreWorkspaceUiStore(context)
+
+    @Provides
+    @Singleton
+    fun provideWorkspaceRegistry(@ApplicationContext context: Context): FileWorkspaceRegistry =
+        FileWorkspaceRegistry(
+            workspacesDir = File(context.filesDir, "workspaces"),
+            journalRoot = File(context.filesDir, "journal"),
+        )
+
+    @Provides
+    @Singleton
+    fun provideWorkshopTreeOps(registry: FileWorkspaceRegistry): WorkshopTreeOps = registry.treeOps
+
+    @Provides
+    @Singleton
+    fun provideAndroidWorkspaceIo(
+        @ApplicationContext context: Context,
+        registry: FileWorkspaceRegistry,
+    ): AndroidWorkspaceIo = DefaultAndroidWorkspaceIo(context, registry)
 }

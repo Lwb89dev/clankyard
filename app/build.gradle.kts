@@ -42,6 +42,8 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:common"))
     implementation(project(":core:ui"))
+    implementation(project(":workspace"))
+    implementation(project(":feature:workspace-picker"))
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.activity.compose)
