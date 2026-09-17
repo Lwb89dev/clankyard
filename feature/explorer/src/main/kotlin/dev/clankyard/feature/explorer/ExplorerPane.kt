@@ -44,6 +44,7 @@ fun ExplorerPane(
     state.pendingDelete?.let { pending ->
         ConfirmDeleteDialog(
             path = pending.path,
+            isDirectory = pending.isDirectory,
             onConfirm = { onEvent(ExplorerUiEvent.ConfirmDelete(pending.path)) },
             onDismiss = { onEvent(ExplorerUiEvent.DismissDelete) },
         )
@@ -85,7 +86,6 @@ private fun ExplorerRowItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                onEvent(ExplorerUiEvent.Select(row.path))
                 if (row.isDirectory) onEvent(ExplorerUiEvent.Toggle(row.path))
                 else onEvent(ExplorerUiEvent.Open(row.path))
             }
@@ -102,13 +102,14 @@ private fun ExplorerRowItem(
 @Composable
 fun ConfirmDeleteDialog(
     path: WorkspacePath,
+    isDirectory: Boolean,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Delete") },
-        text = { Text(confirmDeleteCopy(path)) },
+        text = { Text(confirmDeleteCopy(path, isDirectory)) },
         confirmButton = {
             TextButton(onClick = onConfirm) { Text("Delete") }
         },

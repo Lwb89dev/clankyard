@@ -32,7 +32,6 @@ class ExplorerViewModel(
 
     suspend fun handle(event: ExplorerUiEvent) {
         when (event) {
-            is ExplorerUiEvent.Select -> _state.update { it.copy(selected = event.path, message = null) }
             is ExplorerUiEvent.Toggle -> toggle(event.path)
             is ExplorerUiEvent.Open -> open(event.path)
             is ExplorerUiEvent.RequestNewFile -> prompt(NamePromptKind.NewFile, event.parent)
@@ -172,7 +171,10 @@ class ExplorerViewModel(
         val marker = path.child(DIR_MARKER)
         val written = workspace.writeAtomic(WriteRequest(marker, ByteArray(0), expectedHash = null))
         if (written !is WriteResult.Applied) return written
-        workspace.delete(marker, written.newHash)
+        val removed = workspace.delete(marker, written.newHash)
+        if (removed !is WriteResult.Applied) {
+            return WriteResult.Rejected("folder created but marker remains")
+        }
         return written
     }
 
@@ -269,7 +271,6 @@ class ExplorerViewModel(
             depth = depth,
             expanded = isExpanded,
             hash = meta.hash,
-            sizeBytes = meta.sizeBytes,
         )
         if (!isExpanded) return
         val children = workspace.list(meta.path)

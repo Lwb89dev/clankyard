@@ -45,6 +45,7 @@ fun SearchPane(
         }
         if (state.searching) Text("Searching…", modifier = Modifier.padding(8.dp))
         if (state.truncated) Text("Results truncated.", modifier = Modifier.padding(8.dp))
+        state.message?.let { Text(it, modifier = Modifier.padding(8.dp)) }
         LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
             items(state.hits, key = { hitKey(it) }) { hit ->
                 SearchHitRow(hit) { onEvent(SearchUiEvent.OpenHit(hit)) }

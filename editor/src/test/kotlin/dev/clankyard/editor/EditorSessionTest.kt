@@ -81,7 +81,6 @@ class EditorSessionTest {
         val first = EditorSession(drafts, ws, this, draftDebounceMs = 0)
         first.open(path)
         first.edit(path, "fun main() { TODO() }")
-        first.flushDrafts()
         first.closeSession()
         val second = EditorSession(drafts, ws, this, draftDebounceMs = 0)
         val opened = second.open(path)!!
@@ -106,6 +105,41 @@ class EditorSessionTest {
         assertEquals("A", File(ws.root, "a.txt").readText())
         assertEquals("B", File(ws.root, "b.txt").readText())
         assertTrue(session.dirtyPaths().isEmpty())
+    }
+
+    @Test
+    fun restoredDraftWithChangedDiskDoesNotOverwrite() = runBlocking {
+        val ws = openWs()
+        val drafts = tmp.newFolder("drafts")
+        val path = WorkspacePath.parse("f.txt")
+        ws.writeAtomic(WriteRequest(path, "v1".toByteArray(), null))
+        val first = EditorSession(drafts, ws, this, draftDebounceMs = 0)
+        first.open(path)
+        first.edit(path, "v2")
+        first.closeSession()
+        File(ws.root, "f.txt").writeText("v3")
+        val second = EditorSession(drafts, ws, this, draftDebounceMs = 0)
+        val opened = second.open(path)!!
+        assertEquals("v2", opened.text)
+        assertTrue(opened.dirty)
+        assertEquals("on-disk hash changed", opened.conflict)
+        val result = second.save(path)
+        assertTrue(result is WriteResult.Conflict)
+        assertEquals("v3", File(ws.root, "f.txt").readText())
+        assertEquals("v2", second.document(path)!!.text)
+    }
+
+    @Test
+    fun bomIsStrippedAndSurfaced() = runBlocking {
+        val ws = openWs()
+        val path = WorkspacePath.parse("bom.txt")
+        val bytes = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) + "hi".toByteArray()
+        ws.writeAtomic(WriteRequest(path, bytes, null))
+        val session = EditorSession(tmp.newFolder("drafts"), ws, this, draftDebounceMs = 0)
+        val opened = session.open(path)!!
+        assertEquals("hi", opened.text)
+        assertFalse(opened.dirty)
+        assertEquals(EditorSession.BOM_CONFLICT, opened.conflict)
     }
 
     private fun openWs(): DiskFileBackedWorkspace =

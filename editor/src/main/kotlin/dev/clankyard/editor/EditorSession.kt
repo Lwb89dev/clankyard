@@ -3,11 +3,14 @@ package dev.clankyard.editor
 import dev.clankyard.core.model.ContentHash
 import dev.clankyard.core.model.WorkspacePath
 import dev.clankyard.workspace.BinaryFileException
+import dev.clankyard.workspace.FileTooLargeException
 import dev.clankyard.workspace.Utf8BomDetectedException
 import dev.clankyard.workspace.Workspace
 import dev.clankyard.workspace.WriteRequest
 import dev.clankyard.workspace.WriteResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,6 +18,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.charset.StandardCharsets
 
@@ -81,7 +86,7 @@ class EditorSession(
         when (result) {
             is WriteResult.Applied -> {
                 put(doc.copy(lastSavedText = doc.text, diskHash = result.newHash, dirty = false, conflict = null))
-                drafts.delete(workspace.id, path)
+                withContext(Dispatchers.IO) { drafts.delete(workspace.id, path) }
             }
             is WriteResult.Conflict -> put(doc.copy(conflict = result.reason))
             is WriteResult.Rejected -> put(doc.copy(conflict = result.reason))
@@ -106,7 +111,7 @@ class EditorSession(
         val result = workspace.writeAtomic(WriteRequest(to, bytes, expectedHash = null))
         if (result !is WriteResult.Applied) return result
         draftJobs.remove(from)?.cancel()
-        drafts.delete(workspace.id, from)
+        withContext(Dispatchers.IO) { drafts.delete(workspace.id, from) }
         remove(from)
         put(
             OpenDocument(
@@ -124,69 +129,77 @@ class EditorSession(
 
     suspend fun close(path: WorkspacePath, discard: Boolean = false) {
         draftJobs.remove(path)?.cancel()
-        if (discard) drafts.delete(workspace.id, path)
-        else persistDraftSync(path)
+        if (discard) withContext(Dispatchers.IO) { drafts.delete(workspace.id, path) }
+        else persistDraft(path)
         remove(path)
         if (_active.value == path) _active.value = _documents.value.keys.firstOrNull()
     }
 
-    fun notifyDeleted(path: WorkspacePath) {
+    suspend fun notifyDeleted(path: WorkspacePath) {
         draftJobs.remove(path)?.cancel()
-        drafts.delete(workspace.id, path)
+        withContext(Dispatchers.IO) { drafts.delete(workspace.id, path) }
         remove(path)
         if (_active.value == path) _active.value = _documents.value.keys.firstOrNull()
     }
 
-    fun notifyRenamed(from: WorkspacePath, to: WorkspacePath) {
+    suspend fun notifyRenamed(from: WorkspacePath, to: WorkspacePath) {
         val doc = _documents.value[from] ?: return
-        drafts.delete(workspace.id, from)
+        draftJobs.remove(from)?.cancel()
         remove(from)
-        put(doc.copy(path = to, contentEpoch = nextEpoch()))
+        val moved = doc.copy(path = to, contentEpoch = nextEpoch())
+        put(moved)
         if (_active.value == from) _active.value = to
-        scheduleDraft(to)
+        withContext(Dispatchers.IO) {
+            if (moved.dirty) drafts.save(workspace.id, to, moved.text, moved.diskHash)
+            drafts.delete(workspace.id, from)
+        }
     }
 
     fun closeSession() {
         for (job in draftJobs.values) job.cancel()
         draftJobs.clear()
-        for (path in _documents.value.keys) persistDraftSync(path)
-    }
-
-    suspend fun flushDrafts() {
-        for (job in draftJobs.values) job.cancel()
-        draftJobs.clear()
-        for (path in _documents.value.keys) persistDraftSync(path)
+        val snapshot = _documents.value
+        runBlocking(Dispatchers.IO) {
+            for ((path, doc) in snapshot) persistDraftNow(path, doc)
+        }
     }
 
     private suspend fun load(path: WorkspacePath): OpenDocument? {
         val meta = workspace.metadata(path) ?: return null
         val diskHash = meta.hash ?: return null
         if (meta.isDirectory) return null
-        val diskText = readUtf8(path) ?: return null
-        val draft = drafts.load(workspace.id, path)
+        val utf8 = readUtf8(path) ?: return null
+        val draft = withContext(Dispatchers.IO) { drafts.load(workspace.id, path) }
         if (draft == null) {
-            return OpenDocument(path, diskText, diskText, diskHash, false, nextEpoch())
+            val conflict = if (utf8.bom) BOM_CONFLICT else null
+            return OpenDocument(path, utf8.text, utf8.text, diskHash, false, nextEpoch(), conflict)
         }
-        val conflict = if (draft.expectedHash != diskHash) "on-disk hash changed" else null
+        val conflict = when {
+            draft.expectedHash != diskHash -> "on-disk hash changed"
+            utf8.bom -> BOM_CONFLICT
+            else -> null
+        }
         return OpenDocument(
             path = path,
             text = draft.text,
-            lastSavedText = diskText,
+            lastSavedText = utf8.text,
             diskHash = draft.expectedHash,
-            dirty = draft.text != diskText,
+            dirty = draft.text != utf8.text,
             contentEpoch = nextEpoch(),
             conflict = conflict,
         )
     }
 
-    private suspend fun readUtf8(path: WorkspacePath): String? =
+    private suspend fun readUtf8(path: WorkspacePath): LoadedUtf8? =
         try {
-            workspace.readUtf8(path, maxUtf8Bytes)
+            LoadedUtf8(workspace.readUtf8(path, maxUtf8Bytes), bom = false)
+        } catch (e: CancellationException) {
+            throw e
         } catch (bom: Utf8BomDetectedException) {
-            bom.strippedUtf8
+            LoadedUtf8(bom.strippedUtf8, bom = true)
         } catch (_: BinaryFileException) {
             null
-        } catch (_: Exception) {
+        } catch (_: FileTooLargeException) {
             null
         }
 
@@ -194,12 +207,16 @@ class EditorSession(
         draftJobs.remove(path)?.cancel()
         draftJobs[path] = scope.launch {
             if (draftDebounceMs > 0) delay(draftDebounceMs)
-            persistDraftSync(path)
+            persistDraft(path)
         }
     }
 
-    private fun persistDraftSync(path: WorkspacePath) {
+    private suspend fun persistDraft(path: WorkspacePath) {
         val doc = _documents.value[path] ?: return
+        withContext(Dispatchers.IO) { persistDraftNow(path, doc) }
+    }
+
+    private fun persistDraftNow(path: WorkspacePath, doc: OpenDocument) {
         if (!doc.dirty) {
             drafts.delete(workspace.id, path)
             return
@@ -228,5 +245,8 @@ class EditorSession(
 
     companion object {
         const val DEFAULT_MAX_UTF8_BYTES: Long = 2L * 1024L * 1024L
+        const val BOM_CONFLICT: String = "UTF-8 BOM stripped"
     }
 }
+
+private data class LoadedUtf8(val text: String, val bom: Boolean)

@@ -1,11 +1,14 @@
 package dev.clankyard.search
 
 import dev.clankyard.core.model.WorkspacePath
+import dev.clankyard.workspace.BinaryFileException
 import dev.clankyard.workspace.FileMetadata
+import dev.clankyard.workspace.FileTooLargeException
+import dev.clankyard.workspace.Utf8BomDetectedException
 import dev.clankyard.workspace.Workspace
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.nio.charset.StandardCharsets
 
 class InProcessProjectSearch : ProjectSearch {
     override suspend fun search(workspace: Workspace, query: SearchQuery): List<SearchHit> {
@@ -50,30 +53,27 @@ class InProcessProjectSearch : ProjectSearch {
         query: SearchQuery,
         hits: MutableList<SearchHit>,
     ) {
-        if (meta.sizeBytes > query.maxFileBytes) return
-        val bytes = runCatching { workspace.openRead(meta.path).use { it.readBytes() } }.getOrNull()
-            ?: return
-        if (isBinary(bytes)) return
-        scanText(meta.path, decodeUtf8(bytes), query, hits)
+        val text = readSearchText(workspace, meta.path, query.maxFileBytes) ?: return
+        scanText(meta.path, text, query, hits)
     }
 }
 
-internal fun isBinary(bytes: ByteArray): Boolean {
-    val n = minOf(bytes.size, 8192)
-    for (i in 0 until n) {
-        if (bytes[i] == 0.toByte()) return true
+private suspend fun readSearchText(
+    workspace: Workspace,
+    path: WorkspacePath,
+    maxFileBytes: Long,
+): String? =
+    try {
+        workspace.readUtf8(path, maxFileBytes)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (bom: Utf8BomDetectedException) {
+        bom.strippedUtf8
+    } catch (_: BinaryFileException) {
+        null
+    } catch (_: FileTooLargeException) {
+        null
     }
-    return false
-}
-
-internal fun decodeUtf8(bytes: ByteArray): String {
-    val bom = bytes.size >= 3 &&
-        bytes[0] == 0xEF.toByte() &&
-        bytes[1] == 0xBB.toByte() &&
-        bytes[2] == 0xBF.toByte()
-    val start = if (bom) 3 else 0
-    return String(bytes, start, bytes.size - start, StandardCharsets.UTF_8)
-}
 
 internal fun scanText(
     path: WorkspacePath,

@@ -17,35 +17,30 @@ data class Draft(
 
 class DraftStore(private val root: File) {
     fun load(workspaceId: WorkspaceId, path: WorkspacePath): Draft? {
-        val content = contentFile(workspaceId, path)
-        val hash = hashFile(workspaceId, path)
-        if (!content.isFile || !hash.isFile) return null
-        if (!contained(content) || !contained(hash)) return null
-        val hex = hash.readText(StandardCharsets.UTF_8).trim()
+        val file = draftFile(workspaceId, path)
+        if (!file.isFile || !contained(file)) return null
+        val raw = file.readText(StandardCharsets.UTF_8)
+        val nl = raw.indexOf('\n')
+        if (nl <= 0) return null
+        val hex = raw.substring(0, nl).trim()
         if (hex.isEmpty()) return null
-        return Draft(path, content.readText(StandardCharsets.UTF_8), ContentHash(hex))
+        return Draft(path, raw.substring(nl + 1), ContentHash(hex))
     }
 
     fun save(workspaceId: WorkspaceId, path: WorkspacePath, text: String, expectedHash: ContentHash) {
-        val content = contentFile(workspaceId, path)
-        val hash = hashFile(workspaceId, path)
-        if (!contained(content) || !contained(hash)) return
-        writeAtomic(content, text.toByteArray(StandardCharsets.UTF_8))
-        writeAtomic(hash, expectedHash.sha256Hex.toByteArray(StandardCharsets.UTF_8))
+        val dest = draftFile(workspaceId, path)
+        require(contained(dest)) { "draft path escapes" }
+        val payload = (expectedHash.sha256Hex + "\n" + text).toByteArray(StandardCharsets.UTF_8)
+        writeAtomic(dest, payload)
     }
 
     fun delete(workspaceId: WorkspaceId, path: WorkspacePath) {
-        val content = contentFile(workspaceId, path)
-        val hash = hashFile(workspaceId, path)
-        if (contained(content)) content.delete()
-        if (contained(hash)) hash.delete()
+        val dest = draftFile(workspaceId, path)
+        if (contained(dest)) dest.delete()
     }
 
-    private fun contentFile(id: WorkspaceId, path: WorkspacePath): File =
-        File(File(root, id.value), "content/${path.relative}")
-
-    private fun hashFile(id: WorkspaceId, path: WorkspacePath): File =
-        File(File(root, id.value), "hash/${path.relative}")
+    private fun draftFile(id: WorkspaceId, path: WorkspacePath): File =
+        File(File(root, id.value), path.relative)
 
     private fun contained(file: File): Boolean {
         val canon = runCatching { file.canonicalFile }.getOrNull() ?: return false
@@ -55,8 +50,9 @@ class DraftStore(private val root: File) {
 }
 
 private fun writeAtomic(dest: File, bytes: ByteArray) {
-    dest.parentFile?.mkdirs()
-    val temp = File.createTempFile(".${dest.name}.tmp-", "", dest.parentFile)
+    val parent = dest.parentFile ?: error("draft has no parent")
+    parent.mkdirs()
+    val temp = File.createTempFile(".${dest.name}.tmp-", "", parent)
     try {
         FileOutputStream(temp).use { fos ->
             fos.write(bytes)
@@ -64,8 +60,13 @@ private fun writeAtomic(dest: File, bytes: ByteArray) {
             fos.fd.sync()
         }
         if (temp.renameTo(dest)) return
-        Files.move(temp.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-    } catch (_: Exception) {
+        Files.move(
+            temp.toPath(),
+            dest.toPath(),
+            StandardCopyOption.REPLACE_EXISTING,
+            StandardCopyOption.ATOMIC_MOVE,
+        )
+    } finally {
         temp.delete()
     }
 }

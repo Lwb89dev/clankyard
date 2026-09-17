@@ -4,6 +4,7 @@ import dev.clankyard.search.ProjectSearch
 import dev.clankyard.search.SearchHit
 import dev.clankyard.search.SearchQuery
 import dev.clankyard.workspace.Workspace
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,14 +58,22 @@ class SearchViewModel(
             pattern = current.query,
             caseSensitive = current.caseSensitive,
         )
-        val result = runCatching { search.search(workspace, query) }
-        val hits = result.getOrDefault(emptyList())
+        val hits = try {
+            search.search(workspace, query)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _state.update {
+                it.copy(searching = false, hits = emptyList(), truncated = false, message = e.message)
+            }
+            return
+        }
         _state.update {
             it.copy(
                 searching = false,
                 hits = hits,
                 truncated = hits.size >= SearchQuery.DEFAULT_MAX_MATCHES,
-                message = result.exceptionOrNull()?.message,
+                message = null,
             )
         }
     }

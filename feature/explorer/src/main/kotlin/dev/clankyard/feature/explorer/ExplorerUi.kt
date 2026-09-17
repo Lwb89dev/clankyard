@@ -10,7 +10,6 @@ data class ExplorerRow(
     val depth: Int,
     val expanded: Boolean,
     val hash: ContentHash?,
-    val sizeBytes: Long,
 )
 
 enum class NamePromptKind { NewFile, NewFolder, Rename, SaveAs }
@@ -31,7 +30,6 @@ data class ExplorerUiState(
 )
 
 sealed interface ExplorerUiEvent {
-    data class Select(val path: WorkspacePath) : ExplorerUiEvent
     data class Toggle(val path: WorkspacePath) : ExplorerUiEvent
     data class Open(val path: WorkspacePath) : ExplorerUiEvent
     data class RequestNewFile(val parent: WorkspacePath? = null) : ExplorerUiEvent
@@ -53,5 +51,9 @@ sealed interface ExplorerUiEffect {
     data class SavedAs(val from: WorkspacePath, val to: WorkspacePath) : ExplorerUiEffect
 }
 
-fun confirmDeleteCopy(path: WorkspacePath): String =
-    "Delete ${path.relative}? This cannot be undone from the explorer."
+fun confirmDeleteCopy(path: WorkspacePath, isDirectory: Boolean): String =
+    if (isDirectory) {
+        "Delete ${path.relative} and all contents? This cannot be undone from the explorer."
+    } else {
+        "Delete ${path.relative}? This cannot be undone from the explorer."
+    }

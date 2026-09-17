@@ -88,12 +88,6 @@ class InProcessProjectSearchTest {
         assertTrue(hits.isEmpty())
     }
 
-    @Test
-    fun isBinaryDetectsNul() {
-        assertTrue(isBinary(byteArrayOf(1, 0, 2)))
-        assertTrue(!isBinary("hello".toByteArray()))
-    }
-
     private fun openWs(): DiskFileBackedWorkspace =
         DiskFileBackedWorkspace(
             WorkspaceId("ws"),

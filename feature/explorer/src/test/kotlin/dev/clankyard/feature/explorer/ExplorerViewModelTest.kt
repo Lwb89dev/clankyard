@@ -20,6 +20,20 @@ class ExplorerViewModelTest {
     val tmp = TemporaryFolder()
 
     @Test
+    fun confirmDeleteCopyNamesFolderContents() {
+        val file = WorkspacePath.parse("a.txt")
+        val dir = WorkspacePath.parse("src")
+        assertEquals(
+            "Delete a.txt? This cannot be undone from the explorer.",
+            confirmDeleteCopy(file, isDirectory = false),
+        )
+        assertEquals(
+            "Delete src and all contents? This cannot be undone from the explorer.",
+            confirmDeleteCopy(dir, isDirectory = true),
+        )
+    }
+
+    @Test
     fun listShowsRootChildren() = runBlocking {
         val ws = openWs()
         seed(ws)
