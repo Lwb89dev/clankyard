@@ -1,6 +1,9 @@
 package dev.clankyard.git
 
+import kotlinx.coroutines.CancellationException
+import org.eclipse.jgit.errors.LockFailedException
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -27,5 +30,29 @@ class PublicFusePathTest {
         )
         assertFalse(isPublicFusePath("/data/user/0/dev.clankyard.app/files/workspaces/1"))
         assertFalse(isPublicFusePath("/tmp/junit-workspace"))
+    }
+
+    @Test
+    fun leftoverIndexLockIsNotFuseExcl() {
+        val lock = LockFailedException(File("/tmp/repo/.git/index.lock"))
+        try {
+            wrapGitFailure(lock, File("/tmp/repo"))
+            throw AssertionError("expected LockFailedException")
+        } catch (e: FuseExclException) {
+            throw AssertionError("generic lock must not look like FUSE", e)
+        } catch (e: LockFailedException) {
+            assertSame(lock, e)
+        }
+    }
+
+    @Test
+    fun wrapRethrowsCancellation() {
+        val cancel = CancellationException("cancelled")
+        try {
+            wrapGitFailure(cancel, File("/tmp/repo"))
+            throw AssertionError("expected CancellationException")
+        } catch (e: CancellationException) {
+            assertSame(cancel, e)
+        }
     }
 }

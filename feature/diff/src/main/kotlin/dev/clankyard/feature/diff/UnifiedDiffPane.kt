@@ -14,8 +14,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import dev.clankyard.core.ui.theme.PathTextStyle
-import dev.clankyard.diff.DiffEngine
-import dev.clankyard.diff.MyersDiffEngine
 
 enum class DiffLineKind { Header, Hunk, Added, Removed, Context, Other }
 
@@ -59,17 +57,6 @@ fun UnifiedDiffPane(
             )
         }
     }
-}
-
-@Composable
-fun UnifiedDiffPane(
-    beforeUtf8: String,
-    afterUtf8: String,
-    pathLabel: String,
-    engine: DiffEngine = MyersDiffEngine(),
-    modifier: Modifier = Modifier,
-) {
-    UnifiedDiffPane(engine.unified(beforeUtf8, afterUtf8, pathLabel), modifier)
 }
 
 @Composable

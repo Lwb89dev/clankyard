@@ -24,7 +24,7 @@ android {
 }
 
 dependencies {
-    api(project(":diff"))
+    implementation(project(":diff"))
     implementation(project(":core:ui"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

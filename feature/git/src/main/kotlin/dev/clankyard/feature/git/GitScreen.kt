@@ -26,7 +26,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import dev.clankyard.core.model.WorkspacePath
 import dev.clankyard.core.ui.theme.PathTextStyle
-import dev.clankyard.git.GitStatus
 
 @Composable
 fun GitScreen(viewModel: GitViewModel, modifier: Modifier = Modifier) {
@@ -47,8 +46,8 @@ fun GitScreenContent(
             style = MaterialTheme.typography.titleLarge,
         )
         Text("Clanker does not commit. You do.", style = MaterialTheme.typography.bodyMedium)
-        if (!state.repoPresent) {
-            Button(onClick = { onEvent(GitUiEvent.Init) }, enabled = state.identityReady && !state.busy) {
+        if (!state.repoPresent && !state.busy) {
+            Button(onClick = { onEvent(GitUiEvent.Init) }, enabled = state.identityReady) {
                 Text("Init repository")
             }
         }
@@ -162,18 +161,6 @@ private fun StatusRow(
         }
         if (unstage) {
             OutlinedButton(onClick = { onEvent(GitUiEvent.Unstage(listOf(path))) }) { Text("Unstage") }
-        }
-    }
-}
-
-fun describeStatus(status: GitStatus): String {
-    return buildString {
-        append(status.branch ?: "detached")
-        append(" · staged ").append(status.staged.size)
-        append(" · unstaged ").append(status.unstaged.size)
-        append(" · untracked ").append(status.untracked.size)
-        if (status.conflicts.isNotEmpty()) {
-            append(" · conflicts ").append(status.conflicts.size)
         }
     }
 }

@@ -18,9 +18,9 @@ java {
 dependencies {
     api(project(":workspace"))
     implementation(project(":core:model"))
+    implementation(project(":core:common"))
     implementation(libs.jgit)
     implementation(libs.kotlinx.coroutines.core)
-    runtimeOnly(libs.slf4j.nop)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
 }

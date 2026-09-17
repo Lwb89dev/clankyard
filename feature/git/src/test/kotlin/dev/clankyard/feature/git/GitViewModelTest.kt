@@ -22,6 +22,58 @@ class GitViewModelTest {
     val tmp = TemporaryFolder()
 
     @Test
+    fun loadsExistingRepoOnStart() = runTest {
+        val git = FakeGitRepository().also { it.inited = true }
+        val vm = viewModel(git, this)
+        advanceUntilIdle()
+        assertTrue(vm.state.value.repoPresent)
+        assertEquals(1, git.openCalls)
+        assertEquals(0, git.initCalls)
+    }
+
+    @Test
+    fun closesHandleOnWorkspaceSwitch() = runTest {
+        val git = FakeGitRepository().also { it.inited = true }
+        val first = DiskFileBackedWorkspace(
+            WorkspaceId("one"),
+            "one",
+            tmp.newFolder("one"),
+            tmp.newFolder("one-j"),
+        )
+        val second = DiskFileBackedWorkspace(
+            WorkspaceId("two"),
+            "two",
+            tmp.newFolder("two"),
+            tmp.newFolder("two-j"),
+        )
+        var current: DiskFileBackedWorkspace? = first
+        val vm = GitViewModel(git, { current }, this)
+        advanceUntilIdle()
+        assertEquals(1, git.openCalls)
+        current = second
+        vm.onEvent(GitUiEvent.Refresh)
+        advanceUntilIdle()
+        assertEquals(2, git.openCalls)
+        assertEquals(1, git.handle.closed)
+        current = null
+        vm.onEvent(GitUiEvent.Refresh)
+        advanceUntilIdle()
+        assertFalse(vm.state.value.repoPresent)
+        assertEquals(2, git.handle.closed)
+    }
+
+    @Test
+    fun initIsNoOpWhenRepoAlreadyOpen() = runTest {
+        val git = FakeGitRepository().also { it.inited = true }
+        val vm = viewModel(git, this, GitIdentity("Ada", "ada@clankyard.dev"))
+        advanceUntilIdle()
+        vm.onEvent(GitUiEvent.Init)
+        advanceUntilIdle()
+        assertEquals(0, git.initCalls)
+        assertTrue(vm.state.value.repoPresent)
+    }
+
+    @Test
     fun commitBlockedWithoutIdentity() = runTest {
         val git = FakeGitRepository().also { it.inited = true }
         git.handle.staged += WorkspacePath.parse("a.txt")

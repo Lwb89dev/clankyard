@@ -23,7 +23,7 @@ class JGitRepository : GitRepository {
                 forceCoreConfig(repo)
                 JGitHandle(Git(repo), workspace)
             } catch (e: Exception) {
-                wrapGitFailure(e)
+                wrapGitFailure(e, workspace.root)
             }
         }
 
@@ -44,7 +44,7 @@ class JGitRepository : GitRepository {
                 config.save()
                 JGitHandle(git, workspace)
             } catch (e: Exception) {
-                wrapGitFailure(e)
+                wrapGitFailure(e, workspace.root)
             }
         }
 }

@@ -25,7 +25,6 @@ android {
 
 dependencies {
     api(project(":git"))
-    implementation(project(":diff"))
     implementation(project(":workspace"))
     implementation(project(":core:ui"))
     implementation(platform(libs.androidx.compose.bom))

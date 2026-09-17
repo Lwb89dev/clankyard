@@ -14,11 +14,11 @@ junit = "4.13.2"
 desugar = "2.1.5"
 activity = "1.11.0"
 lifecycle = "2.9.4"
-# CLANK-014: one JGit pin for every API level. Prefer 7.7.1; if API 29 or 36
-# throws NoSuchMethodError, switch everyone to 6.10.1.202505221210-r.
+# CLANK-014: provisional pin 7.7.1 until instrumented init/status/commit/diff
+# passes on API 29 and API 36 (:app androidTest JGitAndroidCompatTest).
+# If either API throws NoSuchMethodError, pin 6.10.1.202505221210-r for everyone.
 # No per-device runtime fallback, no product flavors.
 jgit = "7.7.1.202607240634-r"
-slf4jNop = "2.0.17"
 minSdk = "29"
 compileSdk = "36"
 targetSdk = "36"
@@ -45,7 +45,8 @@ protobuf-protoc = { group = "com.google.protobuf", name = "protoc", version.ref 
 desugar-jdk = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 jgit = { group = "org.eclipse.jgit", name = "org.eclipse.jgit", version.ref = "jgit" }
-slf4j-nop = { group = "org.slf4j", name = "slf4j-nop", version.ref = "slf4jNop" }
+androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version = "1.2.1" }
+androidx-test-runner = { group = "androidx.test", name = "runner", version = "1.6.2" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

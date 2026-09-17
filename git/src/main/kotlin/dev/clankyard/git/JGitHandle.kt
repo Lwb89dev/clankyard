@@ -42,7 +42,7 @@ class JGitHandle(
     override suspend fun stage(paths: List<WorkspacePath>) = ioLocked {
         for (path in paths) {
             if (path.isRoot) continue
-            val file = File(workspace.root, path.relative)
+            val file = containedFile(path)
             if (file.exists()) {
                 git.add().addFilepattern(path.relative).call()
             } else {
@@ -55,6 +55,7 @@ class JGitHandle(
         val hasHead = git.repository.resolve(Constants.HEAD) != null
         for (path in paths) {
             if (path.isRoot) continue
+            containedFile(path)
             if (hasHead) {
                 git.reset().addPath(path.relative).call()
             } else {
@@ -117,11 +118,17 @@ class JGitHandle(
         val wanted = if (path == null || path.isRoot) names else names.filter { it == path.relative }
         return wanted.mapNotNull { relative ->
             val parsed = parseGitPath(relative) ?: return@mapNotNull null
-            val file = File(workspace.root, relative)
-            if (!file.isFile) return@mapNotNull null
+            val file = workspace.resolve(parsed)
+            if (!workspace.containsCanonical(file) || !file.isFile) return@mapNotNull null
             val text = runCatching { file.readText() }.getOrNull() ?: return@mapNotNull null
             GitDiff(parsed, newFileUnified(relative, text))
         }
+    }
+
+    private fun containedFile(path: WorkspacePath): File {
+        val file = workspace.resolve(path)
+        check(workspace.containsCanonical(file)) { "path escapes workspace: ${path.relative}" }
+        return file
     }
 
     private fun unstageFromIndex(path: String) {
@@ -142,7 +149,7 @@ class JGitHandle(
         try {
             block()
         } catch (e: Exception) {
-            wrapGitFailure(e)
+            wrapGitFailure(e, workspace.root)
         }
     }
 }

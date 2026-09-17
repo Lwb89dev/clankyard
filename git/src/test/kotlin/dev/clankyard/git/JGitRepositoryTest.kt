@@ -136,6 +136,36 @@ class JGitRepositoryTest {
     }
 
     @Test
+    fun commitCommandDoesNotSetAll() {
+        val candidates = listOf(
+            File("src/main/kotlin/dev/clankyard/git/JGitHandle.kt"),
+            File("git/src/main/kotlin/dev/clankyard/git/JGitHandle.kt"),
+        )
+        val src = candidates.first { it.isFile }
+        assertFalse(src.readText().contains("setAll"))
+    }
+
+    @Test
+    fun commitStagedALeavesUnstagedB() {
+        val ws = openWs()
+        val handle = runBlocking { git.init(ws, identity) }
+        File(ws.root, "a.txt").writeText("A\n")
+        File(ws.root, "b.txt").writeText("B\n")
+        val a = WorkspacePath.parse("a.txt")
+        val b = WorkspacePath.parse("b.txt")
+        runBlocking {
+            handle.stage(listOf(a))
+            handle.commit("only a", identity)
+        }
+        val status = runBlocking { handle.status() }
+        assertTrue(status.staged.isEmpty())
+        assertFalse(status.staged.contains(b))
+        assertFalse(status.unstaged.contains(a))
+        assertTrue(status.untracked.contains(b) || status.unstaged.contains(b))
+        assertEquals(1, logCount(ws.root))
+    }
+
+    @Test
     fun untrackedDiffIncluded() {
         val ws = openWs()
         val handle = runBlocking { git.init(ws, identity) }

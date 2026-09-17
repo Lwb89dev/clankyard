@@ -29,8 +29,9 @@ class FakeGitRepository : GitRepository {
     }
 }
 
-class FakeGitHandle : GitHandle {
+class FakeGitHandle : GitHandle, AutoCloseable {
     var identity: GitIdentity? = null
+    var closed = 0
     val staged = mutableListOf<WorkspacePath>()
     val unstaged = mutableListOf<WorkspacePath>()
     val untracked = mutableListOf<WorkspacePath>()
@@ -69,4 +70,8 @@ class FakeGitHandle : GitHandle {
     }
 
     override suspend fun currentBranch(): String? = branch
+
+    override fun close() {
+        closed++
+    }
 }

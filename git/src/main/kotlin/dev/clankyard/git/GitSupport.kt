@@ -1,5 +1,6 @@
 package dev.clankyard.git
 
+import kotlinx.coroutines.CancellationException
 import org.eclipse.jgit.errors.LockFailedException
 import org.eclipse.jgit.lib.ConfigConstants
 import org.eclipse.jgit.lib.CoreConfig
@@ -40,12 +41,16 @@ internal fun forceCoreConfig(repo: Repository) {
     config.save()
 }
 
-internal fun wrapGitFailure(error: Throwable): Nothing {
+internal fun wrapGitFailure(error: Throwable, workspaceRoot: File): Nothing {
+    if (error is CancellationException) throw error
     if (error is FuseExclException) throw error
     if (error is GitIdentityRequiredException) throw error
-    if (error is LockFailedException) throw FuseExclException(FUSE_MESSAGE, error)
+    val fuseRoot = isPublicFusePath(
+        runCatching { workspaceRoot.canonicalPath }.getOrElse { workspaceRoot.absolutePath },
+    )
     val text = generateSequence(error) { it.cause }.mapNotNull { it.message }.joinToString(" ")
-    if (text.contains("EXCL", ignoreCase = true)) throw FuseExclException(FUSE_MESSAGE, error)
+    val excl = error is LockFailedException || text.contains("EXCL", ignoreCase = true)
+    if (fuseRoot && excl) throw FuseExclException(FUSE_MESSAGE, error)
     throw error
 }
 
