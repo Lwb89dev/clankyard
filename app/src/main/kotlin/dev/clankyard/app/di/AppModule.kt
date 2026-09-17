@@ -11,8 +11,12 @@ import dev.clankyard.core.common.DefaultRedactingLogger
 import dev.clankyard.core.common.RedactingLogger
 import dev.clankyard.core.ui.DataStoreWorkspaceUiStore
 import dev.clankyard.core.ui.WorkspaceUiStore
+import dev.clankyard.diff.DiffEngine
+import dev.clankyard.diff.MyersDiffEngine
 import dev.clankyard.feature.workspacepicker.AndroidWorkspaceIo
 import dev.clankyard.feature.workspacepicker.DefaultAndroidWorkspaceIo
+import dev.clankyard.git.GitRepository
+import dev.clankyard.git.JGitRepository
 import dev.clankyard.workspace.FileWorkspaceRegistry
 import dev.clankyard.workspace.WorkshopTreeOps
 import java.io.File
@@ -56,4 +60,12 @@ object AppModule {
         @ApplicationContext context: Context,
         registry: FileWorkspaceRegistry,
     ): AndroidWorkspaceIo = DefaultAndroidWorkspaceIo(context, registry)
+
+    @Provides
+    @Singleton
+    fun provideGitRepository(): GitRepository = JGitRepository()
+
+    @Provides
+    @Singleton
+    fun provideDiffEngine(): DiffEngine = MyersDiffEngine()
 }
