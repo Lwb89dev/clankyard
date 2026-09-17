@@ -27,6 +27,8 @@ fun CodeEditorPane(
     readOnly: Boolean = false,
     wordwrap: Boolean = true,
     applyImePadding: Boolean = true,
+    /** Bump when loading a different buffer for the same [fileName] (reload/revert). */
+    contentEpoch: Long = 0L,
     languageSupports: LanguageSupportRegistry = LanguageSupportRegistry.Default,
     onTextChange: (String) -> Unit = {},
     onDirtyChange: (Boolean) -> Unit = {},
@@ -34,6 +36,7 @@ fun CodeEditorPane(
     val handle = controller ?: remember { CodeEditorController() }
     val latestText = rememberUpdatedState(text)
     val latestFile = rememberUpdatedState(fileName)
+    val latestEpoch = rememberUpdatedState(contentEpoch)
     val latestReadOnly = rememberUpdatedState(readOnly)
     val latestWordwrap = rememberUpdatedState(wordwrap)
     val latestOnTextChange = rememberUpdatedState(onTextChange)
@@ -48,6 +51,7 @@ fun CodeEditorPane(
                 handle = handle,
                 fileName = latestFile.value,
                 text = latestText.value,
+                contentEpoch = latestEpoch.value,
                 wordwrap = latestWordwrap.value,
                 readOnly = latestReadOnly.value,
                 registry = latestLanguages.value,
@@ -58,11 +62,15 @@ fun CodeEditorPane(
         update = { editor ->
             editor.isWordwrap = latestWordwrap.value
             editor.isEditable = !latestReadOnly.value
-            bindLanguage(editor, handle, latestFile.value, latestLanguages.value)
-            val incoming = latestText.value
-            if (editor.text.toString() != incoming) {
-                editor.setText(incoming)
-            }
+            maybeApplyDocument(
+                editor = editor,
+                handle = handle,
+                fileName = latestFile.value,
+                text = latestText.value,
+                contentEpoch = latestEpoch.value,
+                registry = latestLanguages.value,
+                onDirtyChange = latestOnDirtyChange.value,
+            )
         },
         onRelease = { editor ->
             handle.detach()
@@ -76,6 +84,7 @@ private fun createBoundEditor(
     handle: CodeEditorController,
     fileName: String,
     text: String,
+    contentEpoch: Long,
     wordwrap: Boolean,
     readOnly: Boolean,
     registry: LanguageSupportRegistry,
@@ -85,11 +94,39 @@ private fun createBoundEditor(
     TextMateBootstrap.ensureLoaded(context)
     val editor = CodeEditor(context)
     configureEditor(editor, handle, wordwrap, readOnly)
-    bindLanguage(editor, handle, fileName, registry)
-    editor.setText(text)
-    handle.markClean()
+    applyDocument(editor, handle, fileName, text, contentEpoch, registry, onDirtyChange)
     listenForEdits(editor, handle, onTextChange, onDirtyChange)
     return editor
+}
+
+private fun maybeApplyDocument(
+    editor: CodeEditor,
+    handle: CodeEditorController,
+    fileName: String,
+    text: String,
+    contentEpoch: Long,
+    registry: LanguageSupportRegistry,
+    onDirtyChange: (Boolean) -> Unit,
+) {
+    if (handle.appliedFileName == fileName && handle.appliedEpoch == contentEpoch) return
+    applyDocument(editor, handle, fileName, text, contentEpoch, registry, onDirtyChange)
+}
+
+private fun applyDocument(
+    editor: CodeEditor,
+    handle: CodeEditorController,
+    fileName: String,
+    text: String,
+    contentEpoch: Long,
+    registry: LanguageSupportRegistry,
+    onDirtyChange: (Boolean) -> Unit,
+) {
+    bindLanguage(editor, handle, fileName, registry)
+    editor.setText(text)
+    handle.appliedFileName = fileName
+    handle.appliedEpoch = contentEpoch
+    handle.markClean()
+    onDirtyChange(false)
 }
 
 private fun listenForEdits(

@@ -31,9 +31,8 @@ android {
 dependencies {
     api(platform(libs.sora.editor.bom))
     api(libs.sora.editor)
-    api(libs.sora.language.java)
-    api(libs.sora.language.textmate)
-    implementation(project(":core:ui"))
+    implementation(libs.sora.language.java)
+    implementation(libs.sora.language.textmate)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.foundation)

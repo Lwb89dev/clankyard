@@ -55,10 +55,9 @@ Python       MIT           MagicStack/MagicPython
                            Copyright (c) 2015-present MagicStack Inc.
 
 JavaScript   MIT           microsoft/TypeScript-TmLanguage
-TypeScript   MIT           TypeScript.tmLanguage (source.ts) and
-                           TypeScriptReact.tmLanguage (source.tsx)
-                           JS/JSX and TS/TSX highlighting uses these grammars
-                           (TypeScript is a superset of JavaScript).
+TypeScript   MIT           TypeScript.tmLanguage (source.ts) for .js/.ts
+                           TypeScriptReact.tmLanguage (source.tsx) for .jsx/.tsx
+                           .js uses source.ts (TypeScript is a superset of JS).
                            https://github.com/microsoft/TypeScript-TmLanguage
                            Copyright (c) Microsoft Corporation
 
@@ -68,10 +67,8 @@ JSON         MIT           microsoft/vscode-JSON.tmLanguage
                            https://github.com/microsoft/vscode-JSON.tmLanguage
                            Copyright (c) Microsoft Corporation
 
-YAML         MIT           redhat-developer/vscode-yaml
-                           syntaxes/yaml.tmLanguage.json (scope source.yaml)
-                           https://github.com/redhat-developer/vscode-yaml
-                           Copyright (c) 2017 Red Hat Inc. and others.
+YAML         (omitted)     No clearly MIT/Apache/BSD grammar; opened as plain text.
+                           Not copied from microsoft/vscode or TextMate yaml.tmbundle.
 
 Markdown     MIT           microsoft/vscode-markdown-tm-grammar
                            syntaxes/markdown.tmLanguage (scope text.html.markdown)

@@ -10,70 +10,74 @@ class LanguageSupportRoutingTest {
 
     @Test
     fun kotlinByFilename() {
-        assertId("Main.kt", LanguageFileNames.KOTLIN)
-        assertId("src/App.kt", LanguageFileNames.KOTLIN)
-        assertId("build.gradle.kts", LanguageFileNames.KOTLIN)
-        assertId("scripts/run.kts", LanguageFileNames.KOTLIN)
+        assertId("Main.kt", "kotlin")
+        assertId("src/App.kt", "kotlin")
+        assertId("build.gradle.kts", "kotlin")
+        assertId("scripts/run.kts", "kotlin")
     }
 
     @Test
     fun javaByFilename() {
-        assertId("Foo.java", LanguageFileNames.JAVA)
-        assertId("src/Foo.JAVA", LanguageFileNames.JAVA)
+        assertId("Foo.java", "java")
+        assertId("src/Foo.JAVA", "java")
     }
 
     @Test
     fun pythonByFilename() {
-        assertId("app.py", LanguageFileNames.PYTHON)
-        assertId("types.pyi", LanguageFileNames.PYTHON)
-        assertId("gui.pyw", LanguageFileNames.PYTHON)
+        assertId("app.py", "python")
+        assertId("types.pyi", "python")
+        assertId("gui.pyw", "python")
     }
 
     @Test
     fun javascriptByFilename() {
-        assertId("index.js", LanguageFileNames.JAVASCRIPT)
-        assertId("mod.mjs", LanguageFileNames.JAVASCRIPT)
-        assertId("lib.cjs", LanguageFileNames.JAVASCRIPT)
-        assertId("View.jsx", LanguageFileNames.JAVASCRIPT)
+        assertId("index.js", "javascript")
+        assertId("mod.mjs", "javascript")
+        assertId("lib.cjs", "javascript")
     }
 
     @Test
     fun typescriptByFilename() {
-        assertId("main.ts", LanguageFileNames.TYPESCRIPT)
-        assertId("main.tsx", LanguageFileNames.TYPESCRIPT)
-        assertId("util.mts", LanguageFileNames.TYPESCRIPT)
-        assertId("util.cts", LanguageFileNames.TYPESCRIPT)
+        assertId("main.ts", "typescript")
+        assertId("util.mts", "typescript")
+        assertId("util.cts", "typescript")
     }
 
     @Test
-    fun jsonYamlMarkdownBash() {
-        assertId("package.json", LanguageFileNames.JSON)
-        assertId("config.yaml", LanguageFileNames.YAML)
-        assertId("config.yml", LanguageFileNames.YAML)
-        assertId("README.md", LanguageFileNames.MARKDOWN)
-        assertId("notes.markdown", LanguageFileNames.MARKDOWN)
-        assertId("setup.sh", LanguageFileNames.BASH)
-        assertId("init.bash", LanguageFileNames.BASH)
-        assertId("rc.zsh", LanguageFileNames.BASH)
+    fun tsxAndJsxByFilename() {
+        assertId("main.tsx", "tsx")
+        assertId("View.jsx", "tsx")
+    }
+
+    @Test
+    fun jsonMarkdownBash() {
+        assertId("package.json", "json")
+        assertId("README.md", "markdown")
+        assertId("notes.markdown", "markdown")
+        assertId("setup.sh", "bash")
+        assertId("init.bash", "bash")
+        assertId("rc.zsh", "bash")
     }
 
     @Test
     fun cAndCppByFilename() {
-        assertId("main.c", LanguageFileNames.C)
-        assertId("api.h", LanguageFileNames.C)
-        assertId("main.cpp", LanguageFileNames.CPP)
-        assertId("main.cc", LanguageFileNames.CPP)
-        assertId("main.cxx", LanguageFileNames.CPP)
-        assertId("api.hpp", LanguageFileNames.CPP)
-        assertId("api.hh", LanguageFileNames.CPP)
+        assertId("main.c", "c")
+        assertId("api.h", "c")
+        assertId("main.cpp", "cpp")
+        assertId("main.cc", "cpp")
+        assertId("main.cxx", "cpp")
+        assertId("api.hpp", "cpp")
+        assertId("api.hh", "cpp")
     }
 
     @Test
-    fun unknownIsPlaintext() {
-        assertId("notes.txt", LanguageFileNames.PLAINTEXT)
-        assertId("Makefile", LanguageFileNames.PLAINTEXT)
-        assertId("AndroidManifest.xml", LanguageFileNames.PLAINTEXT)
-        assertId("noext", LanguageFileNames.PLAINTEXT)
+    fun unknownAndYamlArePlaintext() {
+        assertId("notes.txt", "plaintext")
+        assertId("Makefile", "plaintext")
+        assertId("AndroidManifest.xml", "plaintext")
+        assertId("noext", "plaintext")
+        assertId("config.yaml", "plaintext")
+        assertId("config.yml", "plaintext")
     }
 
     @Test
@@ -84,6 +88,9 @@ class LanguageSupportRoutingTest {
         assertFalse(kotlin.handles("Main.java"))
         assertEquals("Java", registry.forFileName("A.java").displayName)
         assertEquals("Plain text", registry.forFileName("foo.txt").displayName)
+        assertEquals("typescript", registry.forFileName("a.ts").id)
+        assertEquals("tsx", registry.forFileName("a.tsx").id)
+        assertEquals("javascript", registry.forFileName("a.js").id)
     }
 
     @Test
@@ -92,25 +99,22 @@ class LanguageSupportRoutingTest {
         assertTrue(
             ids.containsAll(
                 listOf(
-                    LanguageFileNames.KOTLIN,
-                    LanguageFileNames.JAVA,
-                    LanguageFileNames.PYTHON,
-                    LanguageFileNames.JAVASCRIPT,
-                    LanguageFileNames.TYPESCRIPT,
-                    LanguageFileNames.JSON,
-                    LanguageFileNames.YAML,
-                    LanguageFileNames.MARKDOWN,
-                    LanguageFileNames.BASH,
-                    LanguageFileNames.C,
-                    LanguageFileNames.CPP,
+                    "kotlin", "java", "python", "javascript", "typescript", "tsx",
+                    "json", "markdown", "bash", "c", "cpp",
                 ),
             ),
         )
+        assertFalse(ids.contains("yaml"))
+        assertFalse(ids.contains("plaintext"))
     }
 
     private fun assertId(fileName: String, expected: String) {
-        assertEquals(expected, LanguageFileNames.idFor(fileName))
-        assertEquals(expected, registry.forFileName(fileName).id)
-        assertTrue(registry.forFileName(fileName).handles(fileName) || expected == LanguageFileNames.PLAINTEXT)
+        val support = registry.forFileName(fileName)
+        assertEquals(expected, support.id)
+        if (expected == "plaintext") {
+            assertFalse(registry.all().any { it.handles(fileName) })
+            return
+        }
+        assertTrue(support.handles(fileName))
     }
 }

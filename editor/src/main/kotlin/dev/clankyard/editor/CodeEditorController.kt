@@ -2,6 +2,7 @@ package dev.clankyard.editor
 
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.EditorSearcher
+import java.util.regex.PatternSyntaxException
 
 /**
  * Undo/redo, wordwrap, in-file search, dirty flag, and text access for a bound [CodeEditor].
@@ -9,6 +10,8 @@ import io.github.rosemoe.sora.widget.EditorSearcher
 class CodeEditorController {
     private var editor: CodeEditor? = null
     internal var appliedLanguageId: String? = null
+    internal var appliedFileName: String? = null
+    internal var appliedEpoch: Long = Long.MIN_VALUE
 
     var isDirty: Boolean = false
         private set
@@ -20,6 +23,8 @@ class CodeEditorController {
     internal fun detach() {
         editor = null
         appliedLanguageId = null
+        appliedFileName = null
+        appliedEpoch = Long.MIN_VALUE
     }
 
     internal fun markDirty() {
@@ -61,7 +66,11 @@ class CodeEditorController {
             current.searcher.stopSearch()
             return
         }
-        current.searcher.search(query, EditorSearcher.SearchOptions(caseInsensitive, regex))
+        try {
+            current.searcher.search(query, EditorSearcher.SearchOptions(caseInsensitive, regex))
+        } catch (_: PatternSyntaxException) {
+            current.searcher.stopSearch()
+        }
     }
 
     fun findNext(): Boolean = runSearch { it.gotoNext() }
@@ -75,6 +84,10 @@ class CodeEditorController {
     private fun runSearch(block: (EditorSearcher) -> Boolean): Boolean {
         val searcher = editor?.searcher ?: return false
         if (!searcher.hasQuery()) return false
-        return block(searcher)
+        return try {
+            block(searcher)
+        } catch (_: IllegalStateException) {
+            false
+        }
     }
 }

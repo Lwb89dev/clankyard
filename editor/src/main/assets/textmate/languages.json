@@ -26,11 +26,6 @@
       "scopeName": "source.json"
     },
     {
-      "grammar": "textmate/yaml/yaml.tmLanguage.json",
-      "name": "yaml",
-      "scopeName": "source.yaml"
-    },
-    {
       "grammar": "textmate/markdown/markdown.tmLanguage",
       "name": "markdown",
       "scopeName": "text.html.markdown"
