@@ -8,11 +8,13 @@ import dev.clankyard.ai.secret.SecretLimits
 import dev.clankyard.core.common.RedactingLogger
 import dev.clankyard.core.model.WorkspacePath
 import dev.clankyard.workspace.BinaryFileException
+import dev.clankyard.workspace.FileBackedWorkspace
 import dev.clankyard.workspace.FileMetadata
 import dev.clankyard.workspace.FileTooLargeException
 import dev.clankyard.workspace.Utf8BomDetectedException
 import dev.clankyard.workspace.Workspace
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files
 
 class WorkspaceContextEngine(
     private val workspace: Workspace,
@@ -72,8 +74,17 @@ class WorkspaceContextEngine(
     ) {
         val selection = request.selection ?: return
         if (selection.isEmpty()) return
+        val current = request.currentFile
+        if (current != null) {
+            val reason = aiReadDenied(current, filter, selection.length.toLong(), mimeHint = null)
+            if (reason != null) {
+                refused(current, reason, notes)
+                chunks += omittedChunk(current, "Selection")
+                return
+            }
+        }
         val filtered = filter.filterToolResult(selection)
-        addBlob("Selection", request.currentFile, filtered, budget, chunks, notes, capHeadTail = true)
+        addBlob("Selection", current, filtered, budget, chunks, notes, capHeadTail = true)
     }
 
     private suspend fun addCurrentFile(
@@ -258,13 +269,22 @@ class WorkspaceContextEngine(
         filter: SecretFilter,
     ): MentionResolution {
         val spec = MentionParser.normalize(mention)
-        if (spec.isEmpty()) return MentionResolution.Missing(mention)
-        val dirIntent = spec.endsWith('/')
+        val dirIntent = spec.endsWith('/') || spec == "/"
         val body = spec.trimEnd('/')
+        if (dirIntent && body.isEmpty()) return rootDirectory(filter)
+        if (spec.isEmpty()) return MentionResolution.Missing(mention)
         val exact = exactHits(body, currentFile)
         if (exact.isNotEmpty()) return finishExact(mention, exact, dirIntent, filter)
         if ('/' in body) return MentionResolution.Missing(mention)
         return finishSearch(mention, body, dirIntent, filter)
+    }
+
+    private suspend fun rootDirectory(filter: SecretFilter): MentionResolution {
+        val meta = workspace.metadata(WorkspacePath.ROOT)
+        if (meta != null && isDenied(meta, filter)) {
+            return MentionResolution.Denied(WorkspacePath.ROOT, denyReason(meta, filter))
+        }
+        return MentionResolution.Directory(WorkspacePath.ROOT)
     }
 
     private suspend fun exactHits(spec: String, currentFile: WorkspacePath?): List<FileMetadata> {
@@ -375,8 +395,8 @@ class WorkspaceContextEngine(
     private suspend fun readFiltered(path: WorkspacePath, filter: SecretFilter): ReadOutcome {
         val meta = workspace.metadata(path) ?: return ReadOutcome.Missing
         if (meta.isDirectory) return ReadOutcome.Directory
-        val decision = filter.decide(path, mimeHint = null, sizeBytes = meta.sizeBytes)
-        if (!decision.allowed) return ReadOutcome.Denied(decision.reason ?: "denied")
+        val reason = aiReadDenied(path, filter, meta.sizeBytes, mimeHint = null)
+        if (reason != null) return ReadOutcome.Denied(reason)
         return readAllowed(path, filter)
     }
 
@@ -450,15 +470,37 @@ class WorkspaceContextEngine(
         return !denied || includeDenied
     }
 
-    private fun isDenied(meta: FileMetadata, filter: SecretFilter): Boolean {
-        val mime = if (meta.isDirectory) "inode/directory" else null
-        return !filter.decide(meta.path, mime, meta.sizeBytes).allowed
+    private fun isDenied(meta: FileMetadata, filter: SecretFilter): Boolean =
+        aiReadDenied(meta.path, filter, meta.sizeBytes, mimeOf(meta)) != null
+
+    private fun denyReason(meta: FileMetadata, filter: SecretFilter): String =
+        aiReadDenied(meta.path, filter, meta.sizeBytes, mimeOf(meta)) ?: "denied"
+
+    private fun mimeOf(meta: FileMetadata): String? {
+        if (isSymlink(meta.path)) return "inode/symlink"
+        if (meta.isDirectory) return "inode/directory"
+        return null
     }
 
-    private fun denyReason(meta: FileMetadata, filter: SecretFilter): String {
-        val mime = if (meta.isDirectory) "inode/directory" else null
-        val decision: FilterDecision = filter.decide(meta.path, mime, meta.sizeBytes)
-        return decision.reason ?: "denied"
+    private fun aiReadDenied(
+        path: WorkspacePath,
+        filter: SecretFilter,
+        sizeBytes: Long,
+        mimeHint: String?,
+    ): String? {
+        if (isSymlink(path)) return "symlink"
+        val decision: FilterDecision = filter.decide(path, mimeHint, sizeBytes)
+        if (!decision.allowed) return decision.reason ?: "denied"
+        return null
+    }
+
+    private fun isSymlink(path: WorkspacePath): Boolean {
+        val ws = workspace as? FileBackedWorkspace ?: return false
+        return try {
+            Files.isSymbolicLink(ws.resolve(path).toPath())
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun refused(path: WorkspacePath?, reason: String, notes: MutableList<String>) {

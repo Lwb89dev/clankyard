@@ -13,6 +13,7 @@ internal fun WorkspacePath.parentPath(): WorkspacePath {
 }
 
 internal fun resolveAgainst(baseDir: WorkspacePath, spec: String): WorkspacePath? {
+    if (spec == "/" || spec == ".") return baseDir
     val cleaned = spec.removePrefix("./").trimEnd('/')
     if (cleaned.isEmpty()) return if (spec.endsWith('/')) baseDir else null
     val raw = if (baseDir.isRoot) cleaned else "${baseDir.relative}/$cleaned"

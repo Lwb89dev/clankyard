@@ -124,6 +124,17 @@ class SecretFilterTest {
     }
 
     @Test
+    fun ancestorGlobDeniesNestedFiles() {
+        val nested = path(".env/foo.kt")
+        val decision = filter.decide(nested, null, 40)
+        assertFalse(decision.allowed)
+        assertEquals("secret filename", decision.reason)
+        assertFalse(filter.decide(path(".env.local/src/Main.kt"), null, 20).allowed)
+        assertFalse(filter.decide(path("keys.pem/note.txt"), "text/plain", 20).allowed)
+        assertTrue(filter.filterText(nested, "class Foo").text.isEmpty())
+    }
+
+    @Test
     fun extraDenyGlobsAreConfigurable() {
         val custom = filter.withExtraDenyGlobs(listOf("*.tok"))
         assertFalse(custom.decide(path("a.tok"), "text/plain", 4).allowed)

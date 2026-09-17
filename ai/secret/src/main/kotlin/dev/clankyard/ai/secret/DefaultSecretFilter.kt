@@ -23,14 +23,14 @@ class DefaultSecretFilter(
         val decision = decide(path, mimeHint = "text/plain", sizeBytes = bytes)
         if (!decision.allowed) return FilteredText("", redacted = true, omissions = listOf(decision.reason ?: "denied"))
         if (containsNulInProbe(text)) return FilteredText("", redacted = true, omissions = listOf("binary"))
-        return toFiltered(redactSecrets(text, isProperties(path)), oversize = false)
+        return withOversize(redactSecrets(text, isProperties(path)), oversize = false)
     }
 
     override fun filterToolResult(result: String): FilteredText {
         if (containsNulInProbe(result)) return FilteredText("", redacted = true, omissions = listOf("binary"))
         val oversize = result.length > maxFileBytes
         val clipped = if (oversize) result.substring(0, maxFileBytes.toInt()) else result
-        return toFiltered(redactSecrets(clipped, propertiesStyle = false), oversize)
+        return withOversize(redactSecrets(clipped, propertiesStyle = false), oversize)
     }
 
     private fun denyReason(path: WorkspacePath, mimeHint: String?, sizeBytes: Long): String? {
@@ -38,8 +38,9 @@ class DefaultSecretFilter(
         if (sizeBytes > maxFileBytes) return "oversize"
         if (path.isRoot) return rootReason(mimeHint)
         val relative = path.relative
+        if (mimeHint.equals("inode/symlink", ignoreCase = true)) return "symlink"
         if (deniedDirectory(relative)) return "secret directory"
-        if (deniedByGlob(path.fileName(), relative)) return "secret filename"
+        if (deniedByGlob(relative)) return "secret filename"
         if (ignoreRules.denies(relative)) return "ignored"
         if (isBinaryMime(mimeHint)) return "binary"
         if (!isKnownText(path, mimeHint)) return "unknown type"
@@ -51,7 +52,17 @@ class DefaultSecretFilter(
         return null
     }
 
-    private fun deniedByGlob(name: String, relative: String): Boolean {
+    private fun deniedByGlob(relative: String): Boolean {
+        var prefix = relative
+        while (true) {
+            if (matchesDenyList(fileNameOf(prefix), prefix)) return true
+            val slash = prefix.lastIndexOf('/')
+            if (slash < 0) return false
+            prefix = prefix.substring(0, slash)
+        }
+    }
+
+    private fun matchesDenyList(name: String, relative: String): Boolean {
         for (glob in DEFAULT_DENY_GLOBS) {
             if (matchesDenyGlob(name, relative, glob)) return true
         }
@@ -61,9 +72,9 @@ class DefaultSecretFilter(
         return false
     }
 
-    private fun toFiltered(redaction: Redaction, oversize: Boolean): FilteredText {
-        val omissions = if (oversize) redaction.omissions + "oversize" else redaction.omissions
-        return FilteredText(redaction.text, redaction.redacted || oversize, omissions)
+    private fun withOversize(filtered: FilteredText, oversize: Boolean): FilteredText {
+        if (!oversize) return filtered
+        return FilteredText(filtered.text, redacted = true, omissions = filtered.omissions + "oversize")
     }
 }
 
@@ -155,10 +166,23 @@ private fun isKnownText(path: WorkspacePath, mimeHint: String?): Boolean {
         if (mime.startsWith("text/") || mime in TEXT_APP_MIMES || mime == "inode/directory") return true
         return false
     }
-    val name = path.fileName()
+    val name = fileNameOf(path.relative)
     if (name.lowercase() in TEXT_BASENAMES) return true
     return extensionOf(name) in TEXT_EXTENSIONS
 }
 
 private fun isProperties(path: WorkspacePath): Boolean =
-    path.fileName().endsWith(".properties", ignoreCase = true)
+    fileNameOf(path.relative).endsWith(".properties", ignoreCase = true)
+
+private fun fileNameOf(relative: String): String {
+    val slash = relative.lastIndexOf('/')
+    if (slash < 0) return relative
+    return relative.substring(slash + 1)
+}
+
+private fun extensionOf(name: String): String {
+    if (name.startsWith('.') && name.indexOf('.', 1) < 0) return name.drop(1).lowercase()
+    val dot = name.lastIndexOf('.')
+    if (dot <= 0 || dot == name.lastIndex) return ""
+    return name.substring(dot + 1).lowercase()
+}

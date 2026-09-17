@@ -8,10 +8,12 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assume
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.nio.file.Files
 
 class ContextEngineTest {
     @get:Rule
@@ -162,6 +164,79 @@ class ContextEngineTest {
         val sent = packet.chunks.filter { !it.omitted && it.path != null }
         assertEquals(listOf("src/config.txt"), sent.map { it.path!!.relative })
         assertFalse(packet.chunks.any { it.text.contains("Host secret") })
+    }
+
+    @Test
+    fun selectionFromDeniedFileIsOmitted() = runBlocking {
+        val ws = openWs()
+        write(ws, ".env", "TOKEN=super-secret")
+        val packet = engine(ws).assemble(
+            request(
+                prompt = "what is this",
+                current = ".env",
+                selection = "TOKEN=super-secret",
+            ),
+        )
+        val selection = chunk(packet, "Selection")
+        assertTrue(selection.omitted)
+        assertEquals("", selection.text)
+        assertFalse(packet.chunks.any { it.text.contains("TOKEN") })
+        assertFalse(packet.chunks.any { it.text.contains("super-secret") })
+        assertTrue(packet.filterNotes.any { it.contains(".env") })
+    }
+
+    @Test
+    fun atEnvNestedFileDenied() = runBlocking {
+        val ws = openWs()
+        write(ws, ".env/foo.kt", "class Foo")
+        val packet = engine(ws).assemble(
+            request(prompt = "see @.env/foo.kt", mentions = listOf("@.env/foo.kt")),
+        )
+        val mentioned = packet.chunks.single { it.label.contains(".env/foo.kt") }
+        assertTrue(mentioned.omitted)
+        assertFalse(packet.chunks.any { it.text.contains("class Foo") })
+    }
+
+    @Test
+    fun atSlashResolvesToRootListingOnly() = runBlocking {
+        val ws = openWs()
+        write(ws, "src/MainActivity.kt", "class MainActivity")
+        write(ws, "README.md", "hello workshop")
+        val packet = engine(ws).assemble(
+            request(prompt = "tree", mentions = listOf("@/")),
+        )
+        val root = packet.chunks.single { it.label.contains("@/") || it.path?.isRoot == true }
+        assertFalse(root.omitted)
+        assertTrue(root.text.contains("MainActivity.kt") || root.text.contains("src/"))
+        assertFalse(root.text.contains("class MainActivity"))
+        assertFalse(root.text.contains("hello workshop"))
+        assertTrue(packet.filterNotes.any { it.contains("listing") })
+    }
+
+    @Test
+    fun symlinkToSecretIsDeniedForAiReads() = runBlocking {
+        val ws = openWs()
+        write(ws, ".env", "TOKEN=super-secret")
+        val link = File(ws.root, "secrets.kt")
+        val created = try {
+            Files.createSymbolicLink(link.toPath(), File(ws.root, ".env").toPath())
+            true
+        } catch (_: Exception) {
+            false
+        }
+        Assume.assumeTrue("symlinks not permitted on this OS/FS", created)
+        val packet = engine(ws).assemble(
+            request(
+                prompt = "read @secrets.kt",
+                current = "secrets.kt",
+                selection = "TOKEN=super-secret",
+                mentions = listOf("secrets.kt"),
+            ),
+        )
+        assertFalse(packet.chunks.any { it.text.contains("TOKEN") })
+        assertFalse(packet.chunks.any { it.text.contains("super-secret") })
+        assertTrue(packet.chunks.any { it.omitted && it.label.contains("secrets.kt") })
+        assertTrue(chunk(packet, "Selection").omitted)
     }
 
     @Test

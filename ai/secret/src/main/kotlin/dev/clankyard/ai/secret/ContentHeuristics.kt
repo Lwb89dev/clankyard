@@ -2,13 +2,7 @@ package dev.clankyard.ai.secret
 
 import kotlin.math.ln
 
-internal data class Redaction(
-    val text: String,
-    val redacted: Boolean,
-    val omissions: List<String>,
-)
-
-internal fun redactSecrets(text: String, propertiesStyle: Boolean): Redaction {
+internal fun redactSecrets(text: String, propertiesStyle: Boolean): FilteredText {
     var out = text
     val omissions = ArrayList<String>()
     out = replaceAll(out, PEM_BLOCK, "[REDACTED_PEM]", omissions, "PEM")
@@ -18,7 +12,7 @@ internal fun redactSecrets(text: String, propertiesStyle: Boolean): Redaction {
     out = replaceAll(out, XAI, "[REDACTED]", omissions, "xai")
     out = replaceAll(out, SK, "[REDACTED]", omissions, "sk")
     out = redactHighEntropy(out, propertiesStyle, omissions)
-    return Redaction(out, omissions.isNotEmpty(), omissions)
+    return FilteredText(out, omissions.isNotEmpty(), omissions)
 }
 
 internal fun containsNulInProbe(text: String): Boolean {
