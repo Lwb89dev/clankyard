@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="file" path="credentials/" />
+    <exclude domain="file" path="drafts/" />
+    <exclude domain="file" path="journal/" />
+    <exclude domain="file" path="workspaces/" />
+</full-backup-content>
