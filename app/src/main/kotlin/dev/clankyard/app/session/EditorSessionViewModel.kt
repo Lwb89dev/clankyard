@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.clankyard.core.model.WorkspaceId
 import dev.clankyard.core.model.WorkspacePath
 import dev.clankyard.editor.EditorSession
 import dev.clankyard.workspace.Workspace
@@ -23,10 +24,16 @@ class EditorSessionViewModel @Inject constructor(
     private val draftsRoot = File(context.filesDir, "drafts")
     private val _session = MutableStateFlow<EditorSession?>(null)
     val session: StateFlow<EditorSession?> = _session.asStateFlow()
+    private var boundId: WorkspaceId? = null
+
+    fun boundWorkspaceId(): WorkspaceId? = boundId
 
     fun bind(workspace: Workspace): EditorSession {
-        _session.value?.closeSession()
+        val existing = _session.value
+        if (boundId == workspace.id && existing != null) return existing
+        existing?.closeSession()
         val created = EditorSession(draftsRoot, workspace, viewModelScope)
+        boundId = workspace.id
         _session.value = created
         return created
     }

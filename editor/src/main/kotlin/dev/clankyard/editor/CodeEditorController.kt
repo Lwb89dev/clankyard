@@ -81,6 +81,18 @@ class CodeEditorController {
         editor?.searcher?.stopSearch()
     }
 
+    fun cursorLine(): Int = editor?.cursor?.leftLine ?: 0
+
+    fun cursorColumn(): Int = editor?.cursor?.leftColumn ?: 0
+
+    fun moveCursor(line: Int, column: Int) {
+        val current = editor ?: return
+        val maxLine = (current.lineCount - 1).coerceAtLeast(0)
+        val targetLine = line.coerceIn(0, maxLine)
+        val maxCol = current.text.getColumnCount(targetLine).coerceAtLeast(0)
+        current.setSelection(targetLine, column.coerceIn(0, maxCol))
+    }
+
     private fun runSearch(block: (EditorSearcher) -> Boolean): Boolean {
         val searcher = editor?.searcher ?: return false
         if (!searcher.hasQuery()) return false

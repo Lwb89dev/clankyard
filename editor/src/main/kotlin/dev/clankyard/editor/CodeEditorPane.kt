@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.event.EventReceiver
+import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.widget.CodeEditor
@@ -29,9 +30,12 @@ fun CodeEditorPane(
     applyImePadding: Boolean = true,
     /** Bump when loading a different buffer for the same [fileName] (reload/revert). */
     contentEpoch: Long = 0L,
+    cursorLine: Int = 0,
+    cursorCol: Int = 0,
     languageSupports: LanguageSupportRegistry = LanguageSupportRegistry.Default,
     onTextChange: (String) -> Unit = {},
     onDirtyChange: (Boolean) -> Unit = {},
+    onCursorChange: (Int, Int) -> Unit = { _, _ -> },
 ) {
     val handle = controller ?: remember { CodeEditorController() }
     val latestText = rememberUpdatedState(text)
@@ -41,6 +45,9 @@ fun CodeEditorPane(
     val latestWordwrap = rememberUpdatedState(wordwrap)
     val latestOnTextChange = rememberUpdatedState(onTextChange)
     val latestOnDirtyChange = rememberUpdatedState(onDirtyChange)
+    val latestOnCursorChange = rememberUpdatedState(onCursorChange)
+    val latestCursorLine = rememberUpdatedState(cursorLine)
+    val latestCursorCol = rememberUpdatedState(cursorCol)
     val latestLanguages = rememberUpdatedState(languageSupports)
     val viewModifier = if (applyImePadding) modifier.codeEditorImePadding() else modifier
     AndroidView(
@@ -57,6 +64,9 @@ fun CodeEditorPane(
                 registry = latestLanguages.value,
                 onTextChange = { latestOnTextChange.value(it) },
                 onDirtyChange = { latestOnDirtyChange.value(it) },
+                onCursorChange = { line, col -> latestOnCursorChange.value(line, col) },
+                cursorLine = latestCursorLine.value,
+                cursorCol = latestCursorCol.value,
             )
         },
         update = { editor ->
@@ -70,6 +80,8 @@ fun CodeEditorPane(
                 contentEpoch = latestEpoch.value,
                 registry = latestLanguages.value,
                 onDirtyChange = latestOnDirtyChange.value,
+                cursorLine = latestCursorLine.value,
+                cursorCol = latestCursorCol.value,
             )
         },
         onRelease = { editor ->
@@ -90,12 +102,15 @@ private fun createBoundEditor(
     registry: LanguageSupportRegistry,
     onTextChange: (String) -> Unit,
     onDirtyChange: (Boolean) -> Unit,
+    onCursorChange: (Int, Int) -> Unit,
+    cursorLine: Int,
+    cursorCol: Int,
 ): CodeEditor {
     TextMateBootstrap.ensureLoaded(context)
     val editor = CodeEditor(context)
     configureEditor(editor, handle, wordwrap, readOnly)
-    applyDocument(editor, handle, fileName, text, contentEpoch, registry, onDirtyChange)
-    listenForEdits(editor, handle, onTextChange, onDirtyChange)
+    applyDocument(editor, handle, fileName, text, contentEpoch, registry, onDirtyChange, cursorLine, cursorCol)
+    listenForEdits(editor, handle, onTextChange, onDirtyChange, onCursorChange)
     return editor
 }
 
@@ -107,9 +122,11 @@ private fun maybeApplyDocument(
     contentEpoch: Long,
     registry: LanguageSupportRegistry,
     onDirtyChange: (Boolean) -> Unit,
+    cursorLine: Int,
+    cursorCol: Int,
 ) {
     if (handle.appliedFileName == fileName && handle.appliedEpoch == contentEpoch) return
-    applyDocument(editor, handle, fileName, text, contentEpoch, registry, onDirtyChange)
+    applyDocument(editor, handle, fileName, text, contentEpoch, registry, onDirtyChange, cursorLine, cursorCol)
 }
 
 private fun applyDocument(
@@ -120,6 +137,8 @@ private fun applyDocument(
     contentEpoch: Long,
     registry: LanguageSupportRegistry,
     onDirtyChange: (Boolean) -> Unit,
+    cursorLine: Int,
+    cursorCol: Int,
 ) {
     bindLanguage(editor, handle, fileName, registry)
     editor.setText(text)
@@ -127,6 +146,7 @@ private fun applyDocument(
     handle.appliedEpoch = contentEpoch
     handle.markClean()
     onDirtyChange(false)
+    handle.moveCursor(cursorLine, cursorCol)
 }
 
 private fun listenForEdits(
@@ -134,6 +154,7 @@ private fun listenForEdits(
     handle: CodeEditorController,
     onTextChange: (String) -> Unit,
     onDirtyChange: (Boolean) -> Unit,
+    onCursorChange: (Int, Int) -> Unit,
 ) {
     editor.subscribeEvent(
         ContentChangeEvent::class.java,
@@ -143,6 +164,13 @@ private fun listenForEdits(
                 onDirtyChange(true)
                 onTextChange(editor.text.toString())
             }
+        },
+    )
+    editor.subscribeEvent(
+        SelectionChangeEvent::class.java,
+        EventReceiver { _, _ ->
+            val cursor = editor.cursor
+            onCursorChange(cursor.leftLine, cursor.leftColumn)
         },
     )
 }

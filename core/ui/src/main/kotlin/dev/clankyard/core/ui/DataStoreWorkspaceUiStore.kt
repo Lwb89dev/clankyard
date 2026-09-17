@@ -14,6 +14,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.io.InputStream
@@ -41,6 +42,8 @@ class DataStoreWorkspaceUiStore(
     override suspend fun update(transform: (WorkspaceUiState) -> WorkspaceUiState) {
         dataStore.updateData { current -> transform(current.toModel()).toProto() }
     }
+
+    override suspend fun snapshot(): WorkspaceUiState = dataStore.data.first().toModel()
 }
 
 internal object WorkspaceUiStateSerializer : Serializer<WorkspaceUiStateProto> {
