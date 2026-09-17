@@ -117,6 +117,64 @@ class JournalCrashRecoveryTest {
     }
 
     @Test
+    fun twoFileCrashAfterFirstAppliedRollsBackBoth() {
+        val root = tmp.newFolder("root")
+        val journal = tmp.newFolder("journal")
+        File(root, "a.txt").writeText("old-a")
+        File(root, "b.txt").writeText("old-b")
+        val ha = hashBytes("old-a".toByteArray())
+        val hb = hashBytes("old-b".toByteArray())
+        val crashing = open(root, journal, JournalCrashPoint.AFTER_FIRST_APPLIED_SECOND_PENDING)
+        try {
+            runBlocking {
+                crashing.journal.apply(
+                    listOf(
+                        JournalOp.Replace(WorkspacePath.parse("a.txt"), "new-a".toByteArray(), ha),
+                        JournalOp.Replace(WorkspacePath.parse("b.txt"), "new-b".toByteArray(), hb),
+                    ),
+                )
+            }
+            throw AssertionError("expected simulated crash")
+        } catch (e: SimulatedJournalCrash) {
+            assertEquals(JournalCrashPoint.AFTER_FIRST_APPLIED_SECOND_PENDING, e.point)
+        }
+        assertEquals("new-a", File(root, "a.txt").readText())
+        assertEquals("old-b", File(root, "b.txt").readText())
+        open(root, journal)
+        assertEquals("old-a", File(root, "a.txt").readText())
+        assertEquals("old-b", File(root, "b.txt").readText())
+    }
+
+    @Test
+    fun renameWhenDestAppearsConcurrentlyLeavesDestIntact() {
+        val root = tmp.newFolder("root")
+        val journal = tmp.newFolder("journal")
+        File(root, "from.txt").writeText("body")
+        val dest = File(root, "to.txt")
+        val ws = DiskFileBackedWorkspace.forTest(
+            WorkspaceId("ws"),
+            "ws",
+            root,
+            journal,
+            beforePerform = { dest.writeText("concurrent") },
+        )
+        val result = runBlocking {
+            ws.journal.apply(
+                listOf(
+                    JournalOp.Rename(
+                        WorkspacePath.parse("from.txt"),
+                        WorkspacePath.parse("to.txt"),
+                        hashBytes("body".toByteArray()),
+                    ),
+                ),
+            )
+        }
+        assertTrue(result is JournalApplyResult.Failed)
+        assertEquals("body", File(root, "from.txt").readText())
+        assertEquals("concurrent", dest.readText())
+    }
+
+    @Test
     fun secondFileFailureRollsBackFirstNeverPartial() {
         val ws = open(tmp.newFolder("root"), tmp.newFolder("journal"))
         val a = WorkspacePath.parse("a.txt")

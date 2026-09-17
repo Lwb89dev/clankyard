@@ -45,6 +45,7 @@ interface ChangeJournal {
 internal enum class JournalCrashPoint {
     AFTER_SNAPSHOT,
     AFTER_CONTENT_BEFORE_APPLIED,
+    AFTER_FIRST_APPLIED_SECOND_PENDING,
 }
 
 internal class SimulatedJournalCrash(val point: JournalCrashPoint) : Error("simulated crash at $point")

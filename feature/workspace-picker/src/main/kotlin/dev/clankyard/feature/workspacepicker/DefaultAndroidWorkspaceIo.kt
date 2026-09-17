@@ -3,12 +3,15 @@ package dev.clankyard.feature.workspacepicker
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.webkit.MimeTypeMap
 import androidx.documentfile.provider.DocumentFile
 import dev.clankyard.core.model.WorkspaceId
 import dev.clankyard.core.model.WorkspacePath
 import dev.clankyard.workspace.DiskFileBackedWorkspace
 import dev.clankyard.workspace.FileWorkspaceRegistry
 import dev.clankyard.workspace.TreeExportPlan
+import dev.clankyard.workspace.WriteRequest
+import dev.clankyard.workspace.WriteResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -25,19 +28,30 @@ class DefaultAndroidWorkspaceIo(
         val files = collectSafFiles(src)
         val total = files.sumOf { documentLength(it.doc) }
         registry.treeOps.requireFreeSpace(context.filesDir, total)
-        val ws = registry.create(src.name ?: "project")
+        val ws = registry.prepareCopy(src.name ?: "project")
         try {
             copyFiles(files, ws, total, onProgress)
+            registry.publish(ws).id
         } catch (e: Exception) {
-            registry.remove(ws.id)
+            registry.discardUnpublished(ws)
             throw e
         }
-        ws.id
     }
 
     override suspend fun openInPlaceIfSafe(file: File): WorkspaceId? = withContext(Dispatchers.IO) {
-        if (!isOexclSafeAppSpecific(context, file)) return@withContext null
+        if (!isOexclSafeAppSpecific(file)) return@withContext null
         registry.openRoot(file)?.id ?: registry.registerInPlace(file, file.name).id
+    }
+
+    private fun isOexclSafeAppSpecific(file: File): Boolean {
+        val c = runCatching { file.canonicalFile }.getOrNull() ?: return false
+        if (!c.isDirectory) return false
+        val roots = listOfNotNull(
+            context.filesDir,
+            context.noBackupFilesDir,
+            context.getExternalFilesDir(null),
+        ).map { it.canonicalFile }
+        return roots.any { c == it || c.path.startsWith(it.path + File.separatorChar) }
     }
 
     override suspend fun exportZip(id: WorkspaceId, destUri: Uri) = withContext(Dispatchers.IO) {
@@ -76,7 +90,7 @@ class DefaultAndroidWorkspaceIo(
         return TreeExportPlan(created, overwritten, destRels.count { it !in src })
     }
 
-    private fun copyFiles(
+    private suspend fun copyFiles(
         files: List<SafFile>,
         ws: DiskFileBackedWorkspace,
         total: Long,
@@ -86,6 +100,8 @@ class DefaultAndroidWorkspaceIo(
         var copied = 0L
         try {
             for (item in files) {
+                val remaining = (total - copied).coerceAtLeast(0L)
+                registry.treeOps.requireFreeSpace(context.filesDir, remaining)
                 copied += copyOne(item, ws)
                 onProgress(copied, total)
                 notifyCopy(copied, total)
@@ -95,15 +111,13 @@ class DefaultAndroidWorkspaceIo(
         }
     }
 
-    private fun copyOne(item: SafFile, ws: DiskFileBackedWorkspace): Long {
+    private suspend fun copyOne(item: SafFile, ws: DiskFileBackedWorkspace): Long {
         val path = WorkspacePath.parse(item.rel)
-        val dest = ws.resolve(path)
-        if (!ws.containsCanonical(dest)) error("path escapes workspace: ${item.rel}")
-        dest.parentFile?.mkdirs()
-        context.contentResolver.openInputStream(item.doc.uri)?.use { input ->
-            dest.outputStream().use { input.copyTo(it) }
-        } ?: error("cannot read ${item.rel}")
-        return documentLength(item.doc)
+        val bytes = context.contentResolver.openInputStream(item.doc.uri)?.use { it.readBytes() }
+            ?: error("cannot read ${item.rel}")
+        val result = ws.writeAtomic(WriteRequest(path, bytes, expectedHash = null))
+        if (result !is WriteResult.Applied) error("copy ${item.rel}: $result")
+        return bytes.size.toLong()
     }
 
     private fun notifyCopy(copied: Long, total: Long, done: Boolean = false) {
@@ -157,5 +171,22 @@ private fun findOrCreateDir(parent: DocumentFile, name: String): DocumentFile {
 
 private fun findOrCreateFile(parent: DocumentFile, name: String): DocumentFile {
     parent.listFiles().find { it.isFile && it.name == name }?.let { return it }
-    return parent.createFile("application/octet-stream", name) ?: error("cannot create file $name")
+    val created = parent.createFile(mimeForName(name), name) ?: error("cannot create file $name")
+    if (created.name != name) {
+        created.delete()
+        error("SAF renamed $name to ${created.name}")
+    }
+    return created
+}
+
+private val TEXT_EXT = setOf(
+    "kt", "kts", "java", "js", "ts", "tsx", "json", "xml", "md", "txt",
+    "gradle", "properties", "yml", "yaml", "sh", "c", "h", "cpp", "hpp",
+    "py", "rb", "go", "rs", "toml", "css", "html", "htm",
+)
+
+private fun mimeForName(name: String): String {
+    val ext = name.substringAfterLast('.', missingDelimiterValue = "").lowercase()
+    if (ext in TEXT_EXT) return "text/plain"
+    return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
 }

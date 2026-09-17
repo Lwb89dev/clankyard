@@ -19,7 +19,7 @@ class DiskWorkshopTreeOps(
     override suspend fun planExportToTree(id: WorkspaceId, destRoot: File): TreeExportPlan =
         planExportToTreeBlocking(id, destRoot)
 
-    fun planExportToTreeBlocking(id: WorkspaceId, destRoot: File): TreeExportPlan {
+    private fun planExportToTreeBlocking(id: WorkspaceId, destRoot: File): TreeExportPlan {
         val ws = lookup(id) ?: error("unknown workspace ${id.value}")
         val src = relativeFileSet(ws)
         val dest = relativeFileSet(destRoot)
@@ -32,7 +32,7 @@ class DiskWorkshopTreeOps(
         return TreeExportPlan(created, overwritten, extra)
     }
 
-    fun exportToFileTree(id: WorkspaceId, destRoot: File): TreeExportPlan {
+    internal fun exportToFileTree(id: WorkspaceId, destRoot: File): TreeExportPlan {
         val ws = lookup(id) ?: error("unknown workspace ${id.value}")
         val plan = planExportToTreeBlocking(id, destRoot)
         destRoot.mkdirs()
@@ -53,8 +53,6 @@ class DiskWorkshopTreeOps(
             }
         }
     }
-
-    fun uncompressedSize(root: File): Long = relativeFiles(root).sumOf { it.second.length() }
 
     fun relativeFileSet(ws: DiskFileBackedWorkspace): Set<String> =
         ws.walkFiles().map { it.first.relative }.toSet()

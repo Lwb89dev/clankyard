@@ -12,20 +12,20 @@ class CopyInForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.getBooleanExtra(EXTRA_DONE, false) == true) {
+        if (intent == null || intent.getBooleanExtra(EXTRA_DONE, false)) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
-        val copied = intent?.getLongExtra(EXTRA_COPIED, 0L) ?: 0L
-        val total = intent?.getLongExtra(EXTRA_TOTAL, 0L) ?: 0L
+        val copied = intent.getLongExtra(EXTRA_COPIED, 0L)
+        val total = intent.getLongExtra(EXTRA_TOTAL, 0L)
         ensureChannel()
         startForeground(
             NOTIFICATION_ID,
             notification(copied, total),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
         )
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     private fun ensureChannel() {

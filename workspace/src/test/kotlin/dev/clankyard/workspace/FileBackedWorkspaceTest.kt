@@ -182,6 +182,41 @@ class FileBackedWorkspaceTest {
     }
 
     @Test
+    fun deleteDoesNotFollowSymlinkOut() {
+        val ws = openWs()
+        val outside = tmp.newFolder("outside")
+        val secret = File(outside, "secret.txt").apply { writeText("keep") }
+        val sub = File(ws.root, "sub").apply { mkdirs() }
+        File(sub, "inside.txt").writeText("gone")
+        val link = File(sub, "escape")
+        val created = try {
+            Files.createSymbolicLink(link.toPath(), outside.toPath())
+            true
+        } catch (_: Exception) {
+            false
+        }
+        Assume.assumeTrue("symlinks not permitted on this OS/FS", created)
+        val deleted = runBlocking { ws.delete(WorkspacePath.parse("sub"), null) }
+        assertTrue(deleted is WriteResult.Applied)
+        assertFalse(sub.exists())
+        assertTrue(secret.isFile)
+        assertEquals("keep", secret.readText())
+    }
+
+    @Test
+    fun listSkipsAtomicTempsAndOpenDeletesOrphans() {
+        val root = tmp.newFolder("root")
+        val journal = tmp.newFolder("journal")
+        File(root, "keep.txt").writeText("ok")
+        val orphan = File(root, ".keep.txt.tmp-orphan").apply { writeText("tmp") }
+        val ws = DiskFileBackedWorkspace(WorkspaceId("ws"), "ws", root, journal)
+        assertFalse(orphan.exists())
+        File(ws.root, ".keep.txt.tmp-live").writeText("skip")
+        val listed = runBlocking { ws.list(WorkspacePath.ROOT) }
+        assertEquals(listOf("keep.txt"), listed.map { it.path.relative })
+    }
+
+    @Test
     fun metadataRootIsDirectory() {
         val ws = openWs()
         val meta = runBlocking { ws.metadata(WorkspacePath.ROOT) }

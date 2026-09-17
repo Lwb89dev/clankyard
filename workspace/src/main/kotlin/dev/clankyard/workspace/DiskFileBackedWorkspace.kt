@@ -13,7 +13,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.InputStream
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.security.MessageDigest
 
 class DiskFileBackedWorkspace private constructor(
     override val id: WorkspaceId,
@@ -21,19 +23,21 @@ class DiskFileBackedWorkspace private constructor(
     root: File,
     journalDir: File,
     crashPoint: JournalCrashPoint?,
+    beforePerform: (() -> Unit)?,
 ) : FileBackedWorkspace {
     constructor(
         id: WorkspaceId,
         displayName: String,
         root: File,
         journalDir: File,
-    ) : this(id, displayName, root, journalDir, null)
+    ) : this(id, displayName, root, journalDir, null, null)
 
     override val root: File = root.apply { mkdirs() }.canonicalFile
-    override val journal: ChangeJournal = DiskChangeJournal(journalDir, this, crashPoint)
+    override val journal: ChangeJournal = DiskChangeJournal(journalDir, this, crashPoint, beforePerform)
 
     init {
         (journal as DiskChangeJournal).recover()
+        deleteOrphanTemps()
     }
 
     internal companion object {
@@ -42,8 +46,10 @@ class DiskFileBackedWorkspace private constructor(
             displayName: String,
             root: File,
             journalDir: File,
-            crashPoint: JournalCrashPoint?,
-        ): DiskFileBackedWorkspace = DiskFileBackedWorkspace(id, displayName, root, journalDir, crashPoint)
+            crashPoint: JournalCrashPoint? = null,
+            beforePerform: (() -> Unit)? = null,
+        ): DiskFileBackedWorkspace =
+            DiskFileBackedWorkspace(id, displayName, root, journalDir, crashPoint, beforePerform)
     }
 
     override fun resolve(path: WorkspacePath): File {
@@ -138,7 +144,7 @@ class DiskFileBackedWorkspace private constructor(
             if (!dest.delete()) return WriteResult.Rejected("delete failed")
             return WriteResult.Applied(actual)
         }
-        if (!dest.deleteRecursively()) return WriteResult.Rejected("delete failed")
+        if (!deleteUnfollowed(dest)) return WriteResult.Rejected("delete failed")
         return WriteResult.Applied(EMPTY_HASH)
     }
 
@@ -163,6 +169,7 @@ class DiskFileBackedWorkspace private constructor(
     }
 
     private fun childMetadata(parent: WorkspacePath, child: File): FileMetadata? {
+        if (isAtomicTempName(child.name)) return null
         if (!containsCanonical(child)) return null
         val rel = childRelative(parent, child.name) ?: return null
         return toMetadata(rel, child)
@@ -174,6 +181,22 @@ class DiskFileBackedWorkspace private constructor(
         if (!dest.isFile) throw FileNotFoundException(path.relative)
         if (dest.length() > maxBytes) throw FileTooLargeException(dest.length(), maxBytes)
         return decodeUtf8OrThrow(path, dest.readBytes())
+    }
+
+    private fun decodeUtf8OrThrow(path: WorkspacePath, bytes: ByteArray): String {
+        val n = minOf(bytes.size, 8192)
+        for (i in 0 until n) {
+            if (bytes[i] == 0.toByte()) throw BinaryFileException(path)
+        }
+        val bom = bytes.size >= 3 &&
+            bytes[0] == 0xEF.toByte() &&
+            bytes[1] == 0xBB.toByte() &&
+            bytes[2] == 0xBF.toByte()
+        if (bom) {
+            val stripped = String(bytes, 3, bytes.size - 3, StandardCharsets.UTF_8)
+            throw Utf8BomDetectedException(path, stripped)
+        }
+        return String(bytes, StandardCharsets.UTF_8)
     }
 
     private fun parentError(dest: File, createParents: Boolean): WriteResult? {
@@ -248,6 +271,7 @@ class DiskFileBackedWorkspace private constructor(
         parent: WorkspacePath,
         out: MutableList<Pair<WorkspacePath, File>>,
     ) {
+        if (isAtomicTempName(child.name)) return
         if (!containsCanonical(child)) return
         val rel = childRelative(parent, child.name) ?: return
         val link = Files.isSymbolicLink(child.toPath())
@@ -277,19 +301,63 @@ class DiskFileBackedWorkspace private constructor(
         }
         return out
     }
-}
 
-internal fun childRelative(parent: WorkspacePath, name: String): WorkspacePath? {
-    val raw = if (parent.isRoot) name else "${parent.relative}/$name"
-    return runCatching { WorkspacePath.parse(raw) }.getOrNull()
-}
+    private fun deleteOrphanTemps() {
+        val orphans = ArrayList<File>()
+        collectTemps(root, orphans)
+        for (file in orphans) deleteUnfollowed(file)
+    }
 
-internal fun hashConflict(actual: ContentHash?, expected: ContentHash?): WriteResult.Conflict? {
-    if (expected == null) {
-        if (actual != null) return WriteResult.Conflict(actual, "file exists")
+    private fun collectTemps(dir: File, out: MutableList<File>) {
+        val children = dir.listFiles() ?: return
+        for (child in children) {
+            if (isAtomicTempName(child.name)) {
+                out += child
+                continue
+            }
+            if (Files.isSymbolicLink(child.toPath())) continue
+            if (child.isDirectory) collectTemps(child, out)
+        }
+    }
+
+    private fun childRelative(parent: WorkspacePath, name: String): WorkspacePath? {
+        val raw = if (parent.isRoot) name else "${parent.relative}/$name"
+        return runCatching { WorkspacePath.parse(raw) }.getOrNull()
+    }
+
+    private fun hashConflict(actual: ContentHash?, expected: ContentHash?): WriteResult.Conflict? {
+        if (expected == null) {
+            if (actual != null) return WriteResult.Conflict(actual, "file exists")
+            return null
+        }
+        if (actual == null) return WriteResult.Conflict(null, "file missing")
+        if (actual != expected) return WriteResult.Conflict(actual, "expectedHash mismatch")
         return null
     }
-    if (actual == null) return WriteResult.Conflict(null, "file missing")
-    if (actual != expected) return WriteResult.Conflict(actual, "expectedHash mismatch")
-    return null
+
+    private fun hashFile(file: File): ContentHash {
+        val md = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buf = ByteArray(8192)
+            while (true) {
+                val n = input.read(buf)
+                if (n <= 0) break
+                md.update(buf, 0, n)
+            }
+        }
+        return ContentHash(toHex(md.digest()))
+    }
+}
+
+private val EMPTY_HASH = ContentHash("")
+private const val HEX = "0123456789abcdef"
+
+private fun toHex(bytes: ByteArray): String {
+    val out = CharArray(bytes.size * 2)
+    for (i in bytes.indices) {
+        val v = bytes[i].toInt() and 0xff
+        out[i * 2] = HEX[v ushr 4]
+        out[i * 2 + 1] = HEX[v and 0x0f]
+    }
+    return String(out)
 }

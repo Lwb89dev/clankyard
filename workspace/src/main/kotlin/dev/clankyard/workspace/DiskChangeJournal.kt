@@ -41,6 +41,7 @@ internal class DiskChangeJournal(
     private val journalDir: File,
     private val workspace: DiskFileBackedWorkspace,
     private val crashPoint: JournalCrashPoint? = null,
+    private val beforePerform: (() -> Unit)? = null,
 ) : ChangeJournal {
     private val rows = ArrayList<JournalRow>()
     private val lock = Any()
@@ -50,7 +51,7 @@ internal class DiskChangeJournal(
             journalDir.mkdirs()
             rows.clear()
             rows += readManifest()
-            rollbackPendingLocked()
+            rollbackIncompleteChanges()
             deleteOrphanSnapshots()
         }
     }
@@ -82,26 +83,53 @@ internal class DiskChangeJournal(
     private fun applyLocked(ops: List<JournalOp>): JournalApplyResult {
         val n = nextChangeNumber()
         val started = ArrayList<JournalRow>()
+        val performed = ArrayList<JournalRow>()
         try {
             for ((seq, op) in ops.withIndex()) {
-                val row = snapshotAndPending(n, seq, op)
-                started += row
-                val result = perform(op)
-                if (result !is WriteResult.Applied) {
-                    rollbackStarted(started)
-                    return JournalApplyResult.Failed(failReason(result))
-                }
-                maybeCrash(JournalCrashPoint.AFTER_CONTENT_BEFORE_APPLIED)
-                row.status = STATUS_APPLIED
-                persist()
+                started += snapshotAndPending(n, seq, op)
             }
+            val failed = writeAll(ops, started, performed)
+            if (failed != null) {
+                rollbackRows(performed)
+                markRolledBack(started)
+                persist()
+                return JournalApplyResult.Failed(failed)
+            }
+            markApplied(started)
+            persist()
             return JournalApplyResult.Applied(n, ops.map { it.path })
         } catch (crash: SimulatedJournalCrash) {
             throw crash
         } catch (e: Exception) {
-            rollbackStarted(started)
+            rollbackRows(performed)
+            markRolledBack(started)
+            persist()
             return JournalApplyResult.Failed(e.message ?: "apply failed")
         }
+    }
+
+    private fun writeAll(
+        ops: List<JournalOp>,
+        started: List<JournalRow>,
+        performed: MutableList<JournalRow>,
+    ): String? {
+        for ((i, op) in ops.withIndex()) {
+            beforePerform?.invoke()
+            val result = perform(op)
+            if (result !is WriteResult.Applied) return failReason(result)
+            performed += started[i]
+            maybeCrash(JournalCrashPoint.AFTER_CONTENT_BEFORE_APPLIED)
+            crashAfterFirstApplied(i, started)
+        }
+        return null
+    }
+
+    private fun crashAfterFirstApplied(index: Int, started: List<JournalRow>) {
+        if (crashPoint != JournalCrashPoint.AFTER_FIRST_APPLIED_SECOND_PENDING) return
+        if (index != 0) return
+        started[0].status = STATUS_APPLIED
+        persist()
+        throw SimulatedJournalCrash(JournalCrashPoint.AFTER_FIRST_APPLIED_SECOND_PENDING)
     }
 
     private fun undoLocked(changeNumber: Int): JournalApplyResult {
@@ -163,25 +191,30 @@ internal class DiskChangeJournal(
         is JournalOp.Rename -> workspace.renameBlocking(op.path, op.to, op.expectedHash)
     }
 
-    private fun rollbackStarted(started: List<JournalRow>) {
-        for (row in started.asReversed()) {
-            rollbackRow(row)
-            row.status = STATUS_ROLLED_BACK
+    private fun rollbackIncompleteChanges() {
+        val incomplete = rows.groupBy { it.changeNumber }
+            .filter { (_, group) -> group.any { it.status == STATUS_PENDING } }
+        if (incomplete.isEmpty()) {
+            persist()
+            return
+        }
+        for (group in incomplete.values) {
+            rollbackRows(group.sortedBy { it.seq })
+            markRolledBack(group)
         }
         persist()
     }
 
-    private fun rollbackPendingLocked() {
-        val pending = rows.filter { it.status == STATUS_PENDING }
-        if (pending.isEmpty()) {
-            persist()
-            return
-        }
-        for (row in pending.asReversed()) {
-            rollbackRow(row)
-            row.status = STATUS_ROLLED_BACK
-        }
-        persist()
+    private fun rollbackRows(group: List<JournalRow>) {
+        for (row in group.asReversed()) rollbackRow(row)
+    }
+
+    private fun markRolledBack(group: Collection<JournalRow>) {
+        for (row in group) row.status = STATUS_ROLLED_BACK
+    }
+
+    private fun markApplied(group: List<JournalRow>) {
+        for (row in group) row.status = STATUS_APPLIED
     }
 
     private fun rollbackRow(row: JournalRow) {
@@ -201,24 +234,39 @@ internal class DiskChangeJournal(
     private fun rollbackRename(row: JournalRow) {
         val from = workspace.resolve(WorkspacePath.parse(row.from))
         val to = workspace.resolve(WorkspacePath.parse(row.to))
-        if (workspace.containsCanonical(from) && row.snapshotRel != ABSENT) {
-            restoreSnapshot(row.snapshotRel, from)
+        if (!workspace.containsCanonical(from)) return
+        val fromExisted = from.exists()
+        if (!fromExisted) {
+            unrenameToFrom(from, to, row.snapshotRel)
+            return
         }
-        if (!workspace.containsCanonical(to)) return
-        if (sameCanonical(from, to)) return
-        deleteQuietly(to)
+        if (row.snapshotRel != ABSENT) restoreSnapshot(row.snapshotRel, from)
+        // `to` was not created by this apply — leave it.
     }
 
-    private fun restoreSnapshot(snapshotRel: String, dest: File) {
+    private fun unrenameToFrom(from: File, to: File, snapshotRel: String) {
+        val canMove = workspace.containsCanonical(to) && to.exists() && !sameCanonical(from, to)
+        if (canMove && to.renameTo(from)) {
+            if (snapshotRel != ABSENT) restoreSnapshot(snapshotRel, from)
+            return
+        }
+        if (snapshotRel == ABSENT || !restoreSnapshot(snapshotRel, from)) return
+        if (canMove) deleteQuietly(to)
+    }
+
+    private fun restoreSnapshot(snapshotRel: String, dest: File): Boolean {
         val snap = File(journalDir, snapshotRel)
-        if (!snap.isFile) return
+        if (!snap.isFile) return false
         dest.parentFile?.mkdirs()
         val temp = newSameDirTemp(dest)
         try {
             writeAndFsync(temp, snap.readBytes())
-            if (!renameOver(temp, dest)) temp.delete()
+            if (renameOver(temp, dest)) return true
+            temp.delete()
+            return false
         } catch (_: Exception) {
             temp.delete()
+            return false
         }
     }
 

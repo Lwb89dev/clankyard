@@ -28,6 +28,28 @@ class FileWorkspaceRegistry(
         return register(id, displayName, root)
     }
 
+    fun prepareCopy(displayName: String): DiskFileBackedWorkspace {
+        workspacesDir.mkdirs()
+        journalRoot.mkdirs()
+        val id = WorkspaceId(UUID.randomUUID().toString())
+        val staging = File(workspacesDir, ".staging-${id.value}").apply { mkdirs() }
+        return DiskFileBackedWorkspace(id, displayName, staging, journalDir(id))
+    }
+
+    fun publish(ws: DiskFileBackedWorkspace): DiskFileBackedWorkspace {
+        val dest = File(workspacesDir, ws.id.value)
+        val staging = ws.root
+        if (staging.canonicalFile != dest.canonicalFile && !staging.renameTo(dest)) {
+            error("failed to publish workshop ${ws.id.value}")
+        }
+        return register(ws.id, ws.displayName, dest)
+    }
+
+    fun discardUnpublished(ws: DiskFileBackedWorkspace) {
+        deleteUnfollowed(ws.root)
+        deleteUnfollowed(journalDir(ws.id))
+    }
+
     fun registerInPlace(root: File, displayName: String): DiskFileBackedWorkspace {
         val id = WorkspaceId(UUID.randomUUID().toString())
         return register(id, displayName, root.canonicalFile)
@@ -51,9 +73,9 @@ class FileWorkspaceRegistry(
             val all = records().toMutableList()
             val rec = all.find { it.id == id } ?: return
             if (containsCanonical(workspacesDir, rec.root)) {
-                rec.root.deleteRecursively()
+                deleteUnfollowed(rec.root)
             }
-            journalDir(id).deleteRecursively()
+            deleteUnfollowed(journalDir(id))
             all.removeAll { it.id == id }
             writeRecords(all)
         }

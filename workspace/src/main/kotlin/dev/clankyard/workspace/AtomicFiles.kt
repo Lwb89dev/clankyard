@@ -35,11 +35,21 @@ internal fun renameOver(temp: File, dest: File): Boolean {
     }.getOrDefault(false)
 }
 
-internal fun deleteQuietly(file: File) {
-    if (!file.exists()) return
-    if (file.isDirectory) {
-        file.deleteRecursively()
-        return
+internal fun isAtomicTempName(name: String): Boolean =
+    name.startsWith(".") && name.contains(".tmp-")
+
+/** Delete a file or tree without following symlinks. */
+internal fun deleteUnfollowed(file: File): Boolean {
+    if (!file.exists() && !Files.isSymbolicLink(file.toPath())) return true
+    if (Files.isSymbolicLink(file.toPath()) || file.isFile) return file.delete()
+    val children = file.listFiles() ?: return file.delete()
+    var ok = true
+    for (child in children) {
+        ok = deleteUnfollowed(child) && ok
     }
-    file.delete()
+    return file.delete() && ok
+}
+
+internal fun deleteQuietly(file: File) {
+    deleteUnfollowed(file)
 }
