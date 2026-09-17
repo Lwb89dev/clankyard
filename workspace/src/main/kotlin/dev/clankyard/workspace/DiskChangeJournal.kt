@@ -225,7 +225,7 @@ internal class DiskChangeJournal(
         val dest = workspace.resolve(WorkspacePath.parse(row.destRel.ifEmpty { row.path }))
         if (!workspace.containsCanonical(dest)) return
         if (row.snapshotRel == ABSENT) {
-            deleteQuietly(dest)
+            deleteUnfollowed(dest)
             return
         }
         restoreSnapshot(row.snapshotRel, dest)
@@ -251,7 +251,7 @@ internal class DiskChangeJournal(
             return
         }
         if (snapshotRel == ABSENT || !restoreSnapshot(snapshotRel, from)) return
-        if (canMove) deleteQuietly(to)
+        if (canMove) deleteUnfollowed(to)
     }
 
     private fun restoreSnapshot(snapshotRel: String, dest: File): Boolean {

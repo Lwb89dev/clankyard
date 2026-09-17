@@ -49,7 +49,3 @@ internal fun deleteUnfollowed(file: File): Boolean {
     }
     return file.delete() && ok
 }
-
-internal fun deleteQuietly(file: File) {
-    deleteUnfollowed(file)
-}

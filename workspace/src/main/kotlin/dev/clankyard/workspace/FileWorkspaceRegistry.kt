@@ -17,8 +17,13 @@ class FileWorkspaceRegistry(
     val journalRoot: File,
 ) {
     private val lock = Any()
+    private val inflight = HashSet<WorkspaceId>()
 
     val treeOps: DiskWorkshopTreeOps = DiskWorkshopTreeOps { open(it) }
+
+    init {
+        synchronized(lock) { reapOrphansLocked() }
+    }
 
     fun create(displayName: String): DiskFileBackedWorkspace {
         workspacesDir.mkdirs()
@@ -33,19 +38,28 @@ class FileWorkspaceRegistry(
         journalRoot.mkdirs()
         val id = WorkspaceId(UUID.randomUUID().toString())
         val staging = File(workspacesDir, ".staging-${id.value}").apply { mkdirs() }
+        synchronized(lock) { inflight += id }
         return DiskFileBackedWorkspace(id, displayName, staging, journalDir(id))
     }
 
     fun publish(ws: DiskFileBackedWorkspace): DiskFileBackedWorkspace {
         val dest = File(workspacesDir, ws.id.value)
         val staging = ws.root
-        if (staging.canonicalFile != dest.canonicalFile && !staging.renameTo(dest)) {
-            error("failed to publish workshop ${ws.id.value}")
+        try {
+            if (staging.canonicalFile != dest.canonicalFile && !staging.renameTo(dest)) {
+                error("failed to publish workshop ${ws.id.value}")
+            }
+            return register(ws.id, ws.displayName, dest)
+        } catch (e: Exception) {
+            abortFailedPublish(ws.id, dest)
+            throw e
+        } finally {
+            synchronized(lock) { inflight -= ws.id }
         }
-        return register(ws.id, ws.displayName, dest)
     }
 
     fun discardUnpublished(ws: DiskFileBackedWorkspace) {
+        synchronized(lock) { inflight -= ws.id }
         deleteUnfollowed(ws.root)
         deleteUnfollowed(journalDir(ws.id))
     }
@@ -56,21 +70,28 @@ class FileWorkspaceRegistry(
     }
 
     fun open(id: WorkspaceId): DiskFileBackedWorkspace? {
-        val rec = records().find { it.id == id } ?: return null
+        val rec = synchronized(lock) { loadRecords().find { it.id == id } } ?: return null
         return DiskFileBackedWorkspace(rec.id, rec.displayName, rec.root, journalDir(id))
     }
 
     fun openRoot(root: File): DiskFileBackedWorkspace? {
         val canon = runCatching { root.canonicalFile }.getOrNull() ?: return null
-        val rec = records().find { it.root.canonicalFile == canon } ?: return null
+        val rec = synchronized(lock) {
+            loadRecords().find { it.root.canonicalFile == canon }
+        } ?: return null
         return open(rec.id)
     }
 
-    fun list(): List<WorkspaceRecord> = records()
+    fun list(): List<WorkspaceRecord> {
+        synchronized(lock) {
+            reapOrphansLocked()
+            return loadRecords()
+        }
+    }
 
     fun remove(id: WorkspaceId) {
         synchronized(lock) {
-            val all = records().toMutableList()
+            val all = loadRecords().toMutableList()
             val rec = all.find { it.id == id } ?: return
             if (containsCanonical(workspacesDir, rec.root)) {
                 deleteUnfollowed(rec.root)
@@ -83,20 +104,62 @@ class FileWorkspaceRegistry(
 
     private fun register(id: WorkspaceId, displayName: String, root: File): DiskFileBackedWorkspace {
         synchronized(lock) {
-            val all = records().toMutableList()
+            val all = loadRecords().toMutableList()
             all += WorkspaceRecord(id, displayName, root.canonicalFile)
             writeRecords(all)
         }
         return DiskFileBackedWorkspace(id, displayName, root, journalDir(id))
     }
 
+    private fun abortFailedPublish(id: WorkspaceId, dest: File) {
+        val registered = synchronized(lock) { loadRecords().any { it.id == id } }
+        if (registered) return
+        deleteUnfollowed(dest)
+        deleteUnfollowed(journalDir(id))
+    }
+
     private fun journalDir(id: WorkspaceId): File = File(journalRoot, id.value)
 
-    private fun records(): List<WorkspaceRecord> {
+    private fun loadRecords(): List<WorkspaceRecord> {
         workspacesDir.mkdirs()
         val file = File(workspacesDir, REGISTRY_NAME)
         if (!file.isFile) return emptyList()
         return file.readLines(Charsets.UTF_8).mapNotNull(::parseRecord)
+    }
+
+    private fun reapOrphansLocked() {
+        workspacesDir.mkdirs()
+        journalRoot.mkdirs()
+        val live = HashSet<String>()
+        for (rec in loadRecords()) live += rec.id.value
+        for (id in inflight) live += id.value
+        reapWorkspaceDir(live)
+        reapJournalDir(live)
+    }
+
+    private fun reapWorkspaceDir(live: Set<String>) {
+        val children = workspacesDir.listFiles() ?: return
+        for (child in children) {
+            if (keepWorkspaceChild(child, live)) continue
+            deleteUnfollowed(child)
+        }
+    }
+
+    private fun keepWorkspaceChild(child: File, live: Set<String>): Boolean {
+        val name = child.name
+        if (name == REGISTRY_NAME) return true
+        if (isAtomicTempName(name)) return false
+        if (name.startsWith(".staging-")) return name.removePrefix(".staging-") in live
+        if (!child.isDirectory) return true
+        return name in live
+    }
+
+    private fun reapJournalDir(live: Set<String>) {
+        val children = journalRoot.listFiles() ?: return
+        for (child in children) {
+            if (child.name in live) continue
+            deleteUnfollowed(child)
+        }
     }
 
     private fun writeRecords(all: List<WorkspaceRecord>) {
