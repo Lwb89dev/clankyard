@@ -9,10 +9,11 @@ class BackupAndNetworkConfigTest {
     @Test
     fun dataExtractionRulesExcludeSensitiveTrees() {
         val xml = readXml("data_extraction_rules.xml")
-        assertTrue(xml.contains("<cloud-backup"))
-        assertTrue(xml.contains("<device-transfer"))
+        val cloud = section(xml, "cloud-backup")
+        val transfer = section(xml, "device-transfer")
         for (dir in SENSITIVE) {
-            assertTrue("$dir missing from data extraction rules", xml.contains("path=\"$dir\""))
+            assertTrue("$dir missing from cloud-backup", cloud.contains("path=\"$dir\""))
+            assertTrue("$dir missing from device-transfer", transfer.contains("path=\"$dir\""))
         }
     }
 
@@ -43,6 +44,13 @@ class BackupAndNetworkConfigTest {
         assertTrue(manifest.contains("android.permission.INTERNET"))
         assertFalse(manifest.contains("FOREGROUND_SERVICE"))
         assertFalse(manifest.contains("POST_NOTIFICATIONS"))
+    }
+
+    private fun section(xml: String, tag: String): String {
+        val start = xml.indexOf("<$tag")
+        val end = xml.indexOf("</$tag>")
+        check(start >= 0 && end > start) { "missing <$tag>" }
+        return xml.substring(start, end)
     }
 
     private fun readXml(name: String): String = open("src/main/res/xml/$name").readText()

@@ -33,7 +33,7 @@ class AesGcmCredentialStoreTest {
         withTempStore { store, dir ->
             val secret = "sk-live-super-secret"
             store.put(openai, Credential.ApiKey(secret))
-            val blob = File(dir, openai.value + BLOB_SUFFIX)
+            val blob = File(dir, openai.value + AesGcmCredentialStore.BLOB_SUFFIX)
             assertTrue(blob.isFile)
             val bytes = blob.readBytes()
             assertEquals('C'.code.toByte(), bytes[0])
@@ -50,12 +50,37 @@ class AesGcmCredentialStoreTest {
     fun aadBindsCiphertextToSlot() = runBlocking {
         withTempStore { store, dir ->
             store.put(openai, Credential.ApiKey("sk-live-super-secret"))
-            File(dir, openai.value + BLOB_SUFFIX)
-                .copyTo(File(dir, anthropic.value + BLOB_SUFFIX))
+            File(dir, openai.value + AesGcmCredentialStore.BLOB_SUFFIX)
+                .copyTo(File(dir, anthropic.value + AesGcmCredentialStore.BLOB_SUFFIX))
             assertThrows(SecurityException::class.java) {
                 runBlocking { store.get(anthropic) }
             }
             assertEquals("sk-live-super-secret", (store.get(openai) as Credential.ApiKey).secret)
+        }
+    }
+
+    @Test
+    fun garbageBlobThrowsSecurityExceptionWithoutPlaintext() = runBlocking {
+        withTempStore { store, dir ->
+            val leak = "sk-live-super-secret"
+            File(dir, openai.value + AesGcmCredentialStore.BLOB_SUFFIX)
+                .writeBytes("not-a-blob-$leak".toByteArray())
+            val error = assertThrows(SecurityException::class.java) {
+                runBlocking { store.get(openai) }
+            }
+            assertTrue(error.message!!.contains(openai.value))
+            assertFalse(error.message!!.contains(leak))
+        }
+    }
+
+    @Test
+    fun listSlotsSkipsUndecryptableBlobs() = runBlocking {
+        withTempStore { store, dir ->
+            store.put(openai, Credential.ApiKey("sk-live-super-secret"))
+            File(dir, "llm.xai.default.bin").writeBytes(byteArrayOf(1, 2, 3, 4, 5))
+            File(dir, openai.value + AesGcmCredentialStore.BLOB_SUFFIX)
+                .copyTo(File(dir, anthropic.value + AesGcmCredentialStore.BLOB_SUFFIX))
+            assertEquals(listOf(openai), store.listSlots().map { it.id })
         }
     }
 
@@ -79,7 +104,12 @@ class AesGcmCredentialStoreTest {
             val got = store.get(openai) as Credential.OAuthToken
             assertEquals("access-secret", got.accessToken)
             assertEquals("OAuthToken(****)", got.toString())
-            assertFalse(File(dir, openai.value + BLOB_SUFFIX).readBytes().toString(Charsets.ISO_8859_1).contains("access-secret"))
+            assertFalse(
+                File(dir, openai.value + AesGcmCredentialStore.BLOB_SUFFIX)
+                    .readBytes()
+                    .toString(Charsets.ISO_8859_1)
+                    .contains("access-secret"),
+            )
         }
     }
 
