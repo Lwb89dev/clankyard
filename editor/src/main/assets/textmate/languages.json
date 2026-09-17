@@ -1,0 +1,59 @@
+{
+  "languages": [
+    {
+      "grammar": "textmate/kotlin/kotlin.tmLanguage.json",
+      "name": "kotlin",
+      "scopeName": "source.kotlin"
+    },
+    {
+      "grammar": "textmate/python/MagicPython.tmLanguage",
+      "name": "python",
+      "scopeName": "source.python"
+    },
+    {
+      "grammar": "textmate/typescript/TypeScript.tmLanguage",
+      "name": "typescript",
+      "scopeName": "source.ts"
+    },
+    {
+      "grammar": "textmate/typescript/TypeScriptReact.tmLanguage",
+      "name": "typescriptreact",
+      "scopeName": "source.tsx"
+    },
+    {
+      "grammar": "textmate/json/JSON.tmLanguage",
+      "name": "json",
+      "scopeName": "source.json"
+    },
+    {
+      "grammar": "textmate/yaml/yaml.tmLanguage.json",
+      "name": "yaml",
+      "scopeName": "source.yaml"
+    },
+    {
+      "grammar": "textmate/markdown/markdown.tmLanguage",
+      "name": "markdown",
+      "scopeName": "text.html.markdown"
+    },
+    {
+      "grammar": "textmate/bash/shell.tmLanguage.json",
+      "name": "bash",
+      "scopeName": "source.shell"
+    },
+    {
+      "grammar": "textmate/c/c.tmLanguage.json",
+      "name": "c",
+      "scopeName": "source.c"
+    },
+    {
+      "grammar": "textmate/cpp/cpp.embedded.macro.tmLanguage.json",
+      "name": "cpp-macro",
+      "scopeName": "source.cpp.embedded.macro"
+    },
+    {
+      "grammar": "textmate/cpp/cpp.tmLanguage.json",
+      "name": "cpp",
+      "scopeName": "source.cpp"
+    }
+  ]
+}

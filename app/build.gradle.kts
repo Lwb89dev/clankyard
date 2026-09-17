@@ -43,6 +43,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:ui"))
     implementation(project(":workspace"))
+    implementation(project(":editor"))
     implementation(project(":feature:workspace-picker"))
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
