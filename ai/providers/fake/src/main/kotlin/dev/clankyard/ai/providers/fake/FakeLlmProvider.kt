@@ -43,6 +43,11 @@ class FakeLlmProvider(
     var models: List<ModelInfo> = listOf(DEFAULT_MODEL),
     private val betweenEvents: suspend () -> Unit = {},
 ) : LlmProvider {
+    private val queued = ArrayDeque<List<ChatEvent>>()
+
+    fun enqueue(vararg next: ChatEvent) {
+        queued.addLast(next.toList())
+    }
     override val id: ProviderId = ProviderId("fake")
     override val displayName: String = "Fake"
     override val authenticationKind: AuthenticationKind = AuthenticationKind.ApiKey
@@ -72,7 +77,8 @@ class FakeLlmProvider(
     }
 
     private suspend fun FlowCollector<ChatEvent>.emitScript() {
-        for (event in events) {
+        val script = queued.removeFirstOrNull() ?: events
+        for (event in script) {
             currentCoroutineContext().ensureActive()
             emit(event)
             betweenEvents()
