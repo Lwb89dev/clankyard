@@ -107,6 +107,40 @@ class AdaptiveShellInstrumentedTest {
         compose.onNodeWithContentDescription(WorkshopSemantics.CLANKER_STILL).assertExists()
         compose.onNodeWithContentDescription(WorkshopSemantics.EDITOR_PANE).assertExists()
     }
+
+    @Test
+    fun compactShortWindowKeepsDestinationRailVisible() {
+        compose.setContent {
+            ClankyardTheme {
+                AdaptiveShell(
+                    state = shellState(SizeClass.Compact, CompactDestination.Editor).copy(heightCompact = true),
+                    controller = remember { CodeEditorController() },
+                    onCompactNavigate = {},
+                    onExplorer = {},
+                    onSearch = {},
+                    onOpenPath = {},
+                    onSelectTab = {},
+                    onCloseTab = {},
+                    onEdit = { _, _ -> },
+                    onCursor = { _, _, _ -> },
+                    onWeights = { _, _, _, _ -> },
+                    onBottomTab = {},
+                    onToggleFiles = {},
+                    onToggleClanker = {},
+                    onToggleBottom = {},
+                    onSave = {},
+                    onOpenPalette = {},
+                    onDismissPalette = {},
+                    onFileQuery = {},
+                    onCommand = {},
+                    onCloseWorkspace = {},
+                )
+            }
+        }
+        compose.onNodeWithContentDescription(WorkshopSemantics.NAV_EDITOR).assertIsDisplayed()
+        compose.onNodeWithContentDescription(WorkshopSemantics.NAV_FILES).assertIsDisplayed()
+        compose.onNodeWithContentDescription(WorkshopSemantics.NAV_CLANKER).assertIsDisplayed()
+    }
 }
 
 private fun shellState(

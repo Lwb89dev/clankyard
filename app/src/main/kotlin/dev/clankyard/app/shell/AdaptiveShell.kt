@@ -24,8 +24,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -127,7 +129,6 @@ fun AdaptiveShell(
     gitContent: @Composable (Modifier) -> Unit = { FeaturePlaceholder("Git", "Local git", it) },
     settingsContent: @Composable (() -> Unit) -> Unit = { onDismiss -> SettingsPlaceholder(onDismiss) },
 ) {
-    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val useRail = state.sizeClass == SizeClass.Compact && state.heightCompact
     Scaffold(
         modifier = Modifier
@@ -148,7 +149,7 @@ fun AdaptiveShell(
             )
         },
         bottomBar = {
-            if (state.sizeClass == SizeClass.Compact && !useRail && !imeVisible) {
+            if (state.sizeClass == SizeClass.Compact && !useRail) {
                 CompactBottomNav(state.compactDestination, onCompactNavigate)
             }
         },
@@ -266,8 +267,10 @@ private fun CompactBody(
     Row(Modifier.fillMaxSize()) {
         if (useRail) CompactNavRail(state.compactDestination, onCompactNavigate)
         Box(Modifier.weight(1f).fillMaxHeight()) {
-            // Keep sora composed so opening Clanker does not release the widget.
             val showEditor = state.compactDestination == CompactDestination.Editor
+            if (showEditor) WorkshopWindowSurface(Modifier.fillMaxSize()) {}
+            // Keep the editor composed so changing destinations cannot drop the
+            // active buffer, but remove it from the layout while hidden.
             EditorHost(
                 documents = state.documents,
                 tabs = state.tabs,
@@ -335,14 +338,19 @@ private fun MediumBody(
     Box(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize()) {
             if (!state.chrome.filesCollapsed) {
-                ExplorerPane(
-                    state = state.explorerState,
-                    onEvent = onExplorer,
+                WorkshopWindowSurface(
                     modifier = Modifier
                         .weight(filesW.coerceAtLeast(0.12f))
-                        .widthIn(min = 140.dp)
-                        .semantics { contentDescription = WorkshopSemantics.FILES_PANE },
-                )
+                        .widthIn(min = 140.dp),
+                ) {
+                    ExplorerPane(
+                        state = state.explorerState,
+                        onEvent = onExplorer,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .semantics { contentDescription = WorkshopSemantics.FILES_PANE },
+                    )
+                }
                 VerticalPaneHandle(
                     contentDescription = WorkshopSemantics.HANDLE_FILES,
                     onDrag = { dx ->
@@ -353,20 +361,22 @@ private fun MediumBody(
                     onDragEnd = { onWeights(filesW, editorW, state.chrome.clankerWeight, state.chrome.bottomWeight) },
                 )
             }
-            EditorColumn(
-                state = state,
-                controller = controller,
-                bottomWeight = state.chrome.bottomWeight,
-                onSelectTab = onSelectTab,
-                onCloseTab = onCloseTab,
-                onEdit = onEdit,
-                onCursor = onCursor,
-                onWeights = { b -> onWeights(filesW, editorW, state.chrome.clankerWeight, b) },
-                onBottomTab = onBottomTab,
-                modifier = Modifier.weight(1f),
-                terminalContent = terminalContent,
-                gitContent = gitContent,
-            )
+            WorkshopWindowSurface(Modifier.weight(1f)) {
+                EditorColumn(
+                    state = state,
+                    controller = controller,
+                    bottomWeight = state.chrome.bottomWeight,
+                    onSelectTab = onSelectTab,
+                    onCloseTab = onCloseTab,
+                    onEdit = onEdit,
+                    onCursor = onCursor,
+                    onWeights = { b -> onWeights(filesW, editorW, state.chrome.clankerWeight, b) },
+                    onBottomTab = onBottomTab,
+                    modifier = Modifier.fillMaxSize(),
+                    terminalContent = terminalContent,
+                    gitContent = gitContent,
+                )
+            }
         }
         if (state.chrome.clankerOverlay) {
             WorkshopWindowSurface(
@@ -404,14 +414,19 @@ private fun ExpandedBody(
     var rowWidth by remember { mutableFloatStateOf(1f) }
     Row(Modifier.fillMaxSize().onSizeChanged { rowWidth = it.width.toFloat().coerceAtLeast(1f) }) {
         if (!state.chrome.filesCollapsed) {
-            ExplorerPane(
-                state = state.explorerState,
-                onEvent = onExplorer,
+            WorkshopWindowSurface(
                 modifier = Modifier
                     .weight(filesW.coerceAtLeast(0.12f))
-                    .widthIn(min = 140.dp)
-                    .semantics { contentDescription = WorkshopSemantics.FILES_PANE },
-            )
+                    .widthIn(min = 140.dp),
+            ) {
+                ExplorerPane(
+                    state = state.explorerState,
+                    onEvent = onExplorer,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .semantics { contentDescription = WorkshopSemantics.FILES_PANE },
+                )
+            }
             VerticalPaneHandle(
                 contentDescription = WorkshopSemantics.HANDLE_FILES,
                 onDrag = { dx ->
@@ -422,27 +437,33 @@ private fun ExpandedBody(
                 onDragEnd = { onWeights(filesW, editorW, clankerW, bottomW) },
             )
         }
-        EditorColumn(
-            state = state,
-            controller = controller,
-            bottomWeight = bottomW,
-            onSelectTab = onSelectTab,
-            onCloseTab = onCloseTab,
-            onEdit = onEdit,
-            onCursor = onCursor,
-            onWeights = { b ->
-                bottomW = b
-                onWeights(filesW, editorW, clankerW, b)
-            },
-            onBottomTab = onBottomTab,
-            onBottomDrag = { dy, colH ->
-                val delta = -dy / colH
-                bottomW = (bottomW + delta).coerceIn(0.12f, 0.6f)
-            },
-            modifier = Modifier.weight(editorW.coerceAtLeast(0.3f)).widthIn(min = 240.dp),
-            terminalContent = terminalContent,
-            gitContent = gitContent,
-        )
+        WorkshopWindowSurface(
+            modifier = Modifier
+                .weight(editorW.coerceAtLeast(0.3f))
+                .widthIn(min = 240.dp),
+        ) {
+            EditorColumn(
+                state = state,
+                controller = controller,
+                bottomWeight = bottomW,
+                onSelectTab = onSelectTab,
+                onCloseTab = onCloseTab,
+                onEdit = onEdit,
+                onCursor = onCursor,
+                onWeights = { b ->
+                    bottomW = b
+                    onWeights(filesW, editorW, clankerW, b)
+                },
+                onBottomTab = onBottomTab,
+                onBottomDrag = { dy, colH ->
+                    val delta = -dy / colH
+                    bottomW = (bottomW + delta).coerceIn(0.12f, 0.6f)
+                },
+                modifier = Modifier.fillMaxSize(),
+                terminalContent = terminalContent,
+                gitContent = gitContent,
+            )
+        }
         if (state.chrome.clankerDocked || state.chrome.clankerVisible) {
             VerticalPaneHandle(
                 contentDescription = WorkshopSemantics.HANDLE_CLANKER,
@@ -453,11 +474,13 @@ private fun ExpandedBody(
                 },
                 onDragEnd = { onWeights(filesW, editorW, clankerW, bottomW) },
             )
-            clankerContent(
-                Modifier
+            WorkshopWindowSurface(
+                modifier = Modifier
                     .weight(clankerW.coerceAtLeast(0.12f))
                     .widthIn(min = 160.dp),
-            )
+            ) {
+                clankerContent(Modifier.fillMaxSize())
+            }
         }
     }
 }
@@ -615,13 +638,25 @@ private fun CompactBottomNav(
     onNavigate: (CompactDestination) -> Unit,
 ) {
     WorkshopWindowSurface {
-        NavigationBar(containerColor = Color.Transparent) {
+        NavigationBar(
+            // The gradient underneath can be too close to the item colors in
+            // themed variants, so the destination switcher gets its own surface.
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ) {
             compactDestinations().forEach { dest ->
                 NavigationBarItem(
                     selected = dest == selected,
                     onClick = { onNavigate(dest) },
                     icon = { Text(dest.name.take(1)) },
-                    label = { Text(dest.name) },
+                    label = { Text(dest.displayName()) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
                     modifier = Modifier.semantics { contentDescription = dest.contentDescription() },
                 )
             }
@@ -635,13 +670,23 @@ private fun CompactNavRail(
     onNavigate: (CompactDestination) -> Unit,
 ) {
     WorkshopWindowSurface {
-        NavigationRail(containerColor = Color.Transparent) {
+        NavigationRail(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ) {
             compactDestinations().forEach { dest ->
                 NavigationRailItem(
                     selected = dest == selected,
                     onClick = { onNavigate(dest) },
                     icon = { Text(dest.name.take(1)) },
-                    label = { Text(dest.name) },
+                    label = { Text(dest.displayName()) },
+                    colors = NavigationRailItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
                     modifier = Modifier.semantics { contentDescription = dest.contentDescription() },
                 )
             }
@@ -663,6 +708,14 @@ private fun CompactDestination.contentDescription(): String = when (this) {
     CompactDestination.Clanker -> WorkshopSemantics.NAV_CLANKER
     CompactDestination.Terminal -> WorkshopSemantics.NAV_TERMINAL
     CompactDestination.Git -> WorkshopSemantics.NAV_GIT
+}
+
+private fun CompactDestination.displayName(): String = when (this) {
+    CompactDestination.Editor -> "Editor"
+    CompactDestination.Files -> "Files"
+    CompactDestination.Clanker -> "AI chat"
+    CompactDestination.Terminal -> "Terminal"
+    CompactDestination.Git -> "Git"
 }
 
 private fun shiftWeight(left: Float, right: Float, delta: Float): Pair<Float, Float> {
