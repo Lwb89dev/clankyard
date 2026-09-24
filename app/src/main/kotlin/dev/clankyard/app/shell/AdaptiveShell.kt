@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -128,6 +129,7 @@ fun AdaptiveShell(
     onToggleFiles: () -> Unit,
     onToggleClanker: () -> Unit,
     onToggleBottom: () -> Unit,
+    onShowTerminal: () -> Unit,
     onSave: () -> Unit,
     onOpenPalette: (WorkshopPaletteKind) -> Unit,
     onDismissPalette: () -> Unit,
@@ -154,6 +156,7 @@ fun AdaptiveShell(
                 onToggleFiles = onToggleFiles,
                 onToggleClanker = onToggleClanker,
                 onToggleBottom = onToggleBottom,
+                onShowTerminal = onShowTerminal,
                 onSettings = { onOpenPalette(WorkshopPaletteKind.Settings) },
                 onCloseWorkspace = onCloseWorkspace,
             )
@@ -584,6 +587,7 @@ private fun WorkshopTopBar(
     onToggleFiles: () -> Unit,
     onToggleClanker: () -> Unit,
     onToggleBottom: () -> Unit,
+    onShowTerminal: () -> Unit,
     onSettings: () -> Unit,
     onCloseWorkspace: () -> Unit,
 ) {
@@ -599,6 +603,12 @@ private fun WorkshopTopBar(
             if (sizeClass != SizeClass.Compact) {
                 TextButton(onClick = onToggleFiles) { Text("Files") }
                 TextButton(onClick = onToggleClanker) { Text("Clanker") }
+                Button(
+                    onClick = onShowTerminal,
+                    modifier = Modifier.semantics(mergeDescendants = true) {
+                        contentDescription = "Open ${WorkshopSemantics.NAV_TERMINAL}"
+                    },
+                ) { Text("Terminal") }
                 TextButton(onClick = onToggleBottom) { Text("Panel") }
             }
             IconButton(

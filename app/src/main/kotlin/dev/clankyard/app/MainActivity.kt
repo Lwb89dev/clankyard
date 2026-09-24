@@ -192,6 +192,7 @@ private fun WorkshopScreen(
         onToggleFiles = workspaceSession::toggleFiles,
         onToggleClanker = workspaceSession::toggleClanker,
         onToggleBottom = workspaceSession::toggleBottom,
+        onShowTerminal = workspaceSession::showTerminal,
         onSave = workspaceSession::saveActive,
         onOpenPalette = workspaceSession::openPalette,
         onDismissPalette = {

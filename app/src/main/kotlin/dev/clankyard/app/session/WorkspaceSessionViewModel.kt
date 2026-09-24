@@ -305,6 +305,19 @@ class WorkspaceSessionViewModel @Inject constructor(
         persist { it.copy(bottomCollapsed = nextCollapsed) }
     }
 
+    fun showTerminal() {
+        val size = _chrome.value?.to ?: SizeClass.Compact
+        if (size == SizeClass.Compact) {
+            navigateCompact(CompactDestination.Terminal)
+            return
+        }
+        _chrome.value = _chrome.value?.copy(
+            bottomCollapsed = false,
+            bottomTab = BottomTab.Terminal,
+        )
+        persist { it.copy(bottomCollapsed = false, bottomTab = BottomTab.Terminal) }
+    }
+
     fun saveActive() {
         viewModelScope.launch { editorVm?.saveActive() }
     }
