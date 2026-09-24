@@ -76,7 +76,6 @@ class TerminalSession(
         val dir = cwd() ?: return
         val id = SessionId(UUID.randomUUID().toString())
         sessionId = id
-        collectJob?.cancel()
         _state.update { it.copy(running = true) }
         append("> $text\n")
         val shell = if (File("/system/bin/sh").canExecute()) "/system/bin/sh" else "/bin/sh"
