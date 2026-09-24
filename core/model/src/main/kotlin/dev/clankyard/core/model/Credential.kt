@@ -13,6 +13,11 @@ sealed interface Credential {
     ) : Credential {
         override fun toString() = "OAuthToken(****)"
     }
+
+    /** Ciphertext from Amber NIP-44. The nsec never enters Clankyard. */
+    data class Nip44Wrap(val ciphertext: String) : Credential {
+        override fun toString() = "Nip44Wrap(****)"
+    }
 }
 
 /**
@@ -20,6 +25,7 @@ sealed interface Credential {
  *   llm.<providerId>.default
  *   llm.openai-compatible.<host>
  *   git.https.<host>
+ *   ssh.<host>
  * providerId/host: lowercase [a-z0-9.-]+, no scheme, no path.
  */
 @JvmInline
@@ -30,10 +36,11 @@ value class CredentialSlotId(val value: String) {
 
     val isLlm: Boolean get() = value.startsWith("llm.")
     val isGit: Boolean get() = value.startsWith("git.")
+    val isSsh: Boolean get() = value.startsWith("ssh.")
 
     companion object {
         private val PATTERN = Regex(
-            """^(llm\.[a-z0-9-]+\.default|llm\.openai-compatible\.[a-z0-9.-]+|git\.https\.[a-z0-9.-]+)$""",
+            """^(llm\.[a-z0-9-]+\.default|llm\.openai-compatible\.[a-z0-9.-]+|git\.https\.[a-z0-9.-]+|ssh\.[a-z0-9.-]+)$""",
         )
     }
 }

@@ -1,9 +1,11 @@
 package dev.clankyard.app.session
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.clankyard.core.model.WorkspaceId
 import dev.clankyard.core.model.WorkspacePath
 import dev.clankyard.core.ui.BottomTab
@@ -18,10 +20,26 @@ import dev.clankyard.editor.CodeEditorController
 import dev.clankyard.editor.EditorSession
 import dev.clankyard.feature.explorer.ExplorerUiEffect
 import dev.clankyard.feature.explorer.ExplorerUiEvent
+import dev.clankyard.ai.patch.PatchEngineFactory
+import dev.clankyard.ai.secret.SecretFilter
+import dev.clankyard.ai.tools.ToolRegistry
+import dev.clankyard.app.di.LlmProviderFactory
+import dev.clankyard.core.security.SecureCredentialStore
+import dev.clankyard.feature.clanker.ClankerEvent
+import dev.clankyard.feature.clanker.ClankerViewModel
 import dev.clankyard.feature.explorer.ExplorerViewModel
+import dev.clankyard.feature.git.GitViewModel
 import dev.clankyard.feature.search.SearchUiEvent
 import dev.clankyard.feature.search.SearchViewModel
+import dev.clankyard.feature.settings.AmberBridge
+import dev.clankyard.feature.settings.LlmProbe
+import dev.clankyard.feature.settings.SettingsViewModel
+import dev.clankyard.feature.settings.WorkshopSettingsStore
+import dev.clankyard.feature.terminal.TerminalSession
+import dev.clankyard.git.GitRepository
 import dev.clankyard.search.ProjectSearch
+import dev.clankyard.terminal.api.ExecutionBackend
+import dev.clankyard.workspace.FileBackedWorkspace
 import dev.clankyard.workspace.FileWorkspaceRegistry
 import dev.clankyard.workspace.Workspace
 import dev.clankyard.workspace.WorkspaceRecord
@@ -44,7 +62,20 @@ class WorkspaceSessionViewModel @Inject constructor(
     private val uiStore: WorkspaceUiStore,
     private val registry: FileWorkspaceRegistry,
     private val projectSearch: ProjectSearch,
+    private val gitRepo: GitRepository,
+    private val patchFactory: PatchEngineFactory,
+    private val tools: ToolRegistry,
+    private val secrets: SecretFilter,
+    private val providers: LlmProviderFactory,
+    private val credentials: SecureCredentialStore,
+    private val workshopSettings: WorkshopSettingsStore,
+    private val execution: ExecutionBackend,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
+    private val amber = AmberBridge(appContext)
+    private val llmProbe = LlmProbe { snap, cred ->
+        providers.create(snap.provider, snap.compatibleBaseUrl).listModels(cred).map { it.id }
+    }
     val uiState: StateFlow<WorkspaceUiState> = uiStore.state
 
     private val _workspace = MutableStateFlow<Workspace?>(null)
@@ -68,15 +99,23 @@ class WorkspaceSessionViewModel @Inject constructor(
     private val _fileQuery = MutableStateFlow("")
     val fileQuery: StateFlow<String> = _fileQuery.asStateFlow()
 
-    /** Ephemeral. Never written to DataStore. Process death drops it. */
-    private val _clankerTranscript = MutableStateFlow<List<String>>(emptyList())
-    val clankerTranscript: StateFlow<List<String>> = _clankerTranscript.asStateFlow()
-
     private val _explorer = MutableStateFlow<ExplorerViewModel?>(null)
     val explorer: StateFlow<ExplorerViewModel?> = _explorer.asStateFlow()
 
     private val _search = MutableStateFlow<SearchViewModel?>(null)
     val search: StateFlow<SearchViewModel?> = _search.asStateFlow()
+
+    private val _git = MutableStateFlow<GitViewModel?>(null)
+    val git: StateFlow<GitViewModel?> = _git.asStateFlow()
+
+    private val _clanker = MutableStateFlow<ClankerViewModel?>(null)
+    val clanker: StateFlow<ClankerViewModel?> = _clanker.asStateFlow()
+
+    private val _terminal = MutableStateFlow<TerminalSession?>(null)
+    val terminal: StateFlow<TerminalSession?> = _terminal.asStateFlow()
+
+    private val _settings = MutableStateFlow<SettingsViewModel?>(null)
+    val settings: StateFlow<SettingsViewModel?> = _settings.asStateFlow()
 
     var editorController: CodeEditorController? = null
     private var editorVm: EditorSessionViewModel? = null
@@ -116,9 +155,15 @@ class WorkspaceSessionViewModel @Inject constructor(
     }
 
     fun closeWorkspace() {
+        _git.value?.close()
+        _terminal.value?.close()
+        _clanker.value?.onEvent(ClankerEvent.Cancel)
         _workspace.value = null
         _explorer.value = null
         _search.value = null
+        _git.value = null
+        _clanker.value = null
+        _terminal.value = null
         savedStateHandle[KEY_WORKSPACE_ID] = null
         persist { it.copy(workspaceId = null, tabs = emptyList(), activePath = null) }
     }
@@ -333,6 +378,30 @@ class WorkspaceSessionViewModel @Inject constructor(
         explorerVm.onEvent(ExplorerUiEvent.Refresh)
         _explorer.value = explorerVm
         _search.value = SearchViewModel(ws, projectSearch, viewModelScope)
+        val files = ws as? FileBackedWorkspace
+        _git.value?.close()
+        _git.value = GitViewModel(gitRepo, { _workspace.value as? FileBackedWorkspace }, viewModelScope)
+        _terminal.value?.close()
+        _terminal.value = TerminalSession(execution, { files?.root }, viewModelScope)
+        _clanker.value = ClankerViewModel(
+            workspace = { _workspace.value },
+            fileWorkspace = { _workspace.value as? FileBackedWorkspace },
+            git = gitRepo,
+            patchFactory = patchFactory,
+            tools = tools,
+            secrets = secrets,
+            providers = { kind, url -> providers.create(kind, url) },
+            credentials = credentials,
+            settings = workshopSettings,
+            amber = amber,
+            dirty = { editorVm?.session?.value?.dirty?.value.orEmpty() },
+            currentFile = { editorVm?.session?.value?.activePath?.value },
+            selection = { null },
+            scope = viewModelScope,
+        )
+        if (_settings.value == null) {
+            _settings.value = SettingsViewModel(workshopSettings, viewModelScope, llmProbe, amber)
+        }
         collectEffects()
         val editor = editorVm
         if (editor != null) attachEditor(editor)

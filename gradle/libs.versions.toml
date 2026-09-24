@@ -24,6 +24,7 @@ lifecycle = "2.9.4"
 # If either API throws NoSuchMethodError, pin 6.10.1.202505221210-r for everyone.
 # No per-device runtime fallback, no product flavors.
 jgit = "7.7.1.202607240634-r"
+sshd = "2.19.0"
 minSdk = "29"
 compileSdk = "36"
 targetSdk = "36"
@@ -33,6 +34,7 @@ androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", versi
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-compose-material-icons = { group = "androidx.compose.material", name = "material-icons-core" }
 androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
@@ -56,6 +58,8 @@ protobuf-protoc = { group = "com.google.protobuf", name = "protoc", version.ref 
 desugar-jdk = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 jgit = { group = "org.eclipse.jgit", name = "org.eclipse.jgit", version.ref = "jgit" }
+sshd-core = { group = "org.apache.sshd", name = "sshd-core", version.ref = "sshd" }
+slf4j-nop = { group = "org.slf4j", name = "slf4j-nop", version = "2.0.17" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExt" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
 sora-editor-bom = { group = "io.github.rosemoe", name = "editor-bom", version.ref = "soraEditor" }

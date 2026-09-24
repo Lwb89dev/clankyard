@@ -105,6 +105,10 @@ internal class AesGcmCredentialStore(
                     out.writeUTF(credential.refreshToken.orEmpty())
                     out.writeLong(credential.expiresAtEpochMs ?: -1L)
                 }
+                is Credential.Nip44Wrap -> {
+                    out.writeByte(KIND_NIP44.toInt())
+                    out.writeUTF(credential.ciphertext)
+                }
             }
         }
         return buf.toByteArray()
@@ -119,6 +123,7 @@ internal class AesGcmCredentialStore(
                     refreshToken = input.readUTF().ifEmpty { null },
                     expiresAtEpochMs = input.readLong().let { if (it < 0) null else it },
                 )
+                KIND_NIP44 -> Credential.Nip44Wrap(input.readUTF())
                 else -> error("unknown credential kind")
             }
         }
@@ -169,6 +174,7 @@ internal class AesGcmCredentialStore(
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val KIND_API_KEY: Byte = 1
         private const val KIND_OAUTH: Byte = 2
+        private const val KIND_NIP44: Byte = 3
         private const val MAGIC_0 = 'C'.code.toByte()
         private const val MAGIC_1 = 'Y'.code.toByte()
         private const val MAGIC_2 = 'C'.code.toByte()

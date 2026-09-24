@@ -49,6 +49,11 @@ dependency, is licensed under the Apache License, Version 2.0.
 SLF4J API (org.slf4j:slf4j-api), a JGit transitive dependency:
 Copyright (c) 2004-2025 QOS.ch. MIT License.
 
+Apache MINA SSHD (org.apache.sshd:sshd-core)
+Copyright (c) Apache Software Foundation.
+Licensed under the Apache License, Version 2.0.
+Used by the optional remote SSH execution backend.
+
 
 This file lists third-party notices. Full relink instructions for LGPL
 components will live in docs/licenses.md (CLANK-035 / PR-16).

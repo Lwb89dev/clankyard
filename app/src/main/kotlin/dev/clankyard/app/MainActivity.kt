@@ -13,6 +13,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import dev.clankyard.app.shell.FeaturePlaceholder
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import dev.clankyard.app.session.EditorSessionViewModel
@@ -30,10 +31,14 @@ import dev.clankyard.core.ui.theme.ClankyardTheme
 import dev.clankyard.editor.CodeEditorController
 import dev.clankyard.editor.EditorSession
 import dev.clankyard.editor.OpenDocument
+import dev.clankyard.feature.clanker.ClankerPane
 import dev.clankyard.feature.explorer.ExplorerUiState
 import dev.clankyard.feature.explorer.ExplorerViewModel
+import dev.clankyard.feature.git.GitScreen
 import dev.clankyard.feature.search.SearchUiState
 import dev.clankyard.feature.search.SearchViewModel
+import dev.clankyard.feature.settings.SettingsScreen
+import dev.clankyard.feature.terminal.TerminalPane
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -105,6 +110,10 @@ private fun WorkshopScreen(
     val fileHits by workspaceSession.fileHits.collectAsStateWithLifecycle()
     val explorerVm by workspaceSession.explorer.collectAsStateWithLifecycle()
     val searchVm by workspaceSession.search.collectAsStateWithLifecycle()
+    val gitVm by workspaceSession.git.collectAsStateWithLifecycle()
+    val clankerVm by workspaceSession.clanker.collectAsStateWithLifecycle()
+    val terminal by workspaceSession.terminal.collectAsStateWithLifecycle()
+    val settingsVm by workspaceSession.settings.collectAsStateWithLifecycle()
     val session by editorSession.session.collectAsStateWithLifecycle()
     val explorerState = collectExplorer(explorerVm)
     val searchState = collectSearch(searchVm)
@@ -158,6 +167,17 @@ private fun WorkshopScreen(
         onFileQuery = workspaceSession::setFileQuery,
         onCommand = workspaceSession::runCommand,
         onCloseWorkspace = workspaceSession::closeWorkspace,
+        clankerContent = { modifier -> ClankerPane(clankerVm, modifier) },
+        terminalContent = { modifier -> TerminalPane(terminal, modifier) },
+        gitContent = { modifier ->
+            if (gitVm != null) GitScreen(gitVm!!, modifier)
+            else FeaturePlaceholder("Git", "Open a workshop.", modifier)
+        },
+        settingsContent = { onDismiss ->
+            val vm = settingsVm
+            if (vm != null) SettingsScreen(vm, onDismiss)
+            else FeaturePlaceholder("Settings", "Unavailable", Modifier)
+        },
     )
 }
 

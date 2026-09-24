@@ -27,6 +27,11 @@ fun CredentialSlotId.toCredentialSlot(): CredentialSlot = when {
         providerHint = "git",
         label = value.removePrefix(GIT_PREFIX),
     )
+    value.startsWith(SSH_PREFIX) -> CredentialSlot(
+        id = this,
+        providerHint = "ssh",
+        label = value.removePrefix(SSH_PREFIX),
+    )
     else -> {
         val provider = value.removePrefix("llm.").removeSuffix(".default")
         CredentialSlot(id = this, providerHint = provider, label = provider)
@@ -35,3 +40,4 @@ fun CredentialSlotId.toCredentialSlot(): CredentialSlot = when {
 
 private const val COMPATIBLE_PREFIX = "llm.openai-compatible."
 private const val GIT_PREFIX = "git.https."
+private const val SSH_PREFIX = "ssh."

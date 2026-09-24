@@ -97,6 +97,16 @@ class AesGcmCredentialStoreTest {
     }
 
     @Test
+    fun nip44WrapRoundTrip() = runBlocking {
+        withTempStore { store, _ ->
+            store.put(openai, Credential.Nip44Wrap("cipher-from-amber"))
+            val got = store.get(openai) as Credential.Nip44Wrap
+            assertEquals("cipher-from-amber", got.ciphertext)
+            assertEquals("Nip44Wrap(****)", got.toString())
+        }
+    }
+
+    @Test
     fun oauthTokenRoundTripStillRedacted() = runBlocking {
         withTempStore { store, dir ->
             val token = Credential.OAuthToken("access-secret", "refresh-secret", 99L)

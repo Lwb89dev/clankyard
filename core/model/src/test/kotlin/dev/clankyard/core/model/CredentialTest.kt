@@ -16,6 +16,13 @@ class CredentialTest {
     }
 
     @Test
+    fun nip44WrapToStringHidesCiphertext() {
+        val wrap = Credential.Nip44Wrap("cipher-secret-blob")
+        assertEquals("Nip44Wrap(****)", wrap.toString())
+        assertFalse(wrap.toString().contains("cipher-secret"))
+    }
+
+    @Test
     fun oauthTokenToStringHidesSecret() {
         val token = Credential.OAuthToken("access-secret", "refresh-secret", 1L)
         assertEquals("OAuthToken(****)", token.toString())
@@ -39,6 +46,10 @@ class CredentialTest {
         val git = CredentialSlotId("git.https.github.com")
         assertTrue(git.isGit)
         assertFalse(git.isLlm)
+        val ssh = CredentialSlotId("ssh.build.example.com")
+        assertTrue(ssh.isSsh)
+        assertFalse(ssh.isLlm)
+        assertFalse(ssh.isGit)
     }
 
     @Test

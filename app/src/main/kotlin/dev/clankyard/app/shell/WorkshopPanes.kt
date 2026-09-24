@@ -32,7 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import dev.clankyard.app.R
+import dev.clankyard.core.ui.R
 import dev.clankyard.core.model.WorkspacePath
 import dev.clankyard.core.ui.BottomTab
 import dev.clankyard.core.ui.OpenTab
@@ -167,6 +167,8 @@ fun BottomToolsPane(
     selected: BottomTab,
     onSelect: (BottomTab) -> Unit,
     modifier: Modifier = Modifier,
+    terminalContent: @Composable (Modifier) -> Unit = { FeaturePlaceholder("Terminal", "Sandbox shell", it) },
+    gitContent: @Composable (Modifier) -> Unit = { FeaturePlaceholder("Git", "Local git", it) },
 ) {
     Column(
         modifier = modifier
@@ -185,15 +187,9 @@ fun BottomToolsPane(
             }
         }
         when (selected) {
-            BottomTab.Terminal -> FeaturePlaceholder(
-                title = "Terminal",
-                body = "Sandbox shell lands later. This is a sandbox shell, not a Linux distro.",
-            )
+            BottomTab.Terminal -> terminalContent(Modifier.fillMaxSize())
             BottomTab.Problems -> FeaturePlaceholder(title = "Problems", body = "No problems yet.")
-            BottomTab.Git -> FeaturePlaceholder(
-                title = "Git",
-                body = "Local status/diff/commit lands later. No clone/pull/push.",
-            )
+            BottomTab.Git -> gitContent(Modifier.fillMaxSize())
             BottomTab.Output -> FeaturePlaceholder(title = "Output", body = "No output yet.")
         }
     }

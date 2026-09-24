@@ -15,8 +15,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -117,6 +121,10 @@ fun AdaptiveShell(
     onFileQuery: (String) -> Unit,
     onCommand: (WorkshopCommand) -> Unit,
     onCloseWorkspace: () -> Unit,
+    clankerContent: @Composable (Modifier) -> Unit = { ClankerPlaceholder(it) },
+    terminalContent: @Composable (Modifier) -> Unit = { FeaturePlaceholder("Terminal", "Sandbox shell", it) },
+    gitContent: @Composable (Modifier) -> Unit = { FeaturePlaceholder("Git", "Local git", it) },
+    settingsContent: @Composable (() -> Unit) -> Unit = { onDismiss -> SettingsPlaceholder(onDismiss) },
 ) {
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val useRail = state.sizeClass == SizeClass.Compact && state.heightCompact
@@ -157,6 +165,9 @@ fun AdaptiveShell(
                 onCursor = onCursor,
                 onWeights = onWeights,
                 onBottomTab = onBottomTab,
+                clankerContent = clankerContent,
+                terminalContent = terminalContent,
+                gitContent = gitContent,
             )
             WorkshopOverlays(
                 state = state,
@@ -165,6 +176,7 @@ fun AdaptiveShell(
                 onDismissPalette = onDismissPalette,
                 onFileQuery = onFileQuery,
                 onCommand = onCommand,
+                settingsContent = settingsContent,
             )
         }
     }
@@ -183,6 +195,9 @@ private fun WorkshopBody(
     onCursor: (WorkspacePath, Int, Int) -> Unit,
     onWeights: (Float, Float, Float, Float) -> Unit,
     onBottomTab: (BottomTab) -> Unit,
+    clankerContent: @Composable (Modifier) -> Unit,
+    terminalContent: @Composable (Modifier) -> Unit,
+    gitContent: @Composable (Modifier) -> Unit,
 ) {
     when (state.chrome.layout) {
         WorkshopLayout.CompactDestinations -> CompactBody(
@@ -195,6 +210,9 @@ private fun WorkshopBody(
             onCloseTab = onCloseTab,
             onEdit = onEdit,
             onCursor = onCursor,
+            clankerContent = clankerContent,
+            terminalContent = terminalContent,
+            gitContent = gitContent,
         )
         WorkshopLayout.MediumListDetail -> MediumBody(
             state = state,
@@ -206,6 +224,9 @@ private fun WorkshopBody(
             onCursor = onCursor,
             onWeights = onWeights,
             onBottomTab = onBottomTab,
+            clankerContent = clankerContent,
+            terminalContent = terminalContent,
+            gitContent = gitContent,
         )
         WorkshopLayout.ExpandedThreePane -> ExpandedBody(
             state = state,
@@ -217,6 +238,9 @@ private fun WorkshopBody(
             onCursor = onCursor,
             onWeights = onWeights,
             onBottomTab = onBottomTab,
+            clankerContent = clankerContent,
+            terminalContent = terminalContent,
+            gitContent = gitContent,
         )
     }
 }
@@ -232,6 +256,9 @@ private fun CompactBody(
     onCloseTab: (WorkspacePath) -> Unit,
     onEdit: (WorkspacePath, String) -> Unit,
     onCursor: (WorkspacePath, Int, Int) -> Unit,
+    clankerContent: @Composable (Modifier) -> Unit,
+    terminalContent: @Composable (Modifier) -> Unit,
+    gitContent: @Composable (Modifier) -> Unit,
 ) {
     Row(Modifier.fillMaxSize()) {
         if (useRail) CompactNavRail(state.compactDestination, onCompactNavigate)
@@ -251,7 +278,13 @@ private fun CompactBody(
             )
             if (!showEditor) {
                 Surface(Modifier.fillMaxSize()) {
-                    CompactDestinationPane(state, onExplorer)
+                    CompactDestinationPane(
+                        state,
+                        onExplorer,
+                        clankerContent,
+                        terminalContent,
+                        gitContent,
+                    )
                 }
             }
         }
@@ -262,6 +295,9 @@ private fun CompactBody(
 private fun CompactDestinationPane(
     state: AdaptiveShellState,
     onExplorer: (ExplorerUiEvent) -> Unit,
+    clankerContent: @Composable (Modifier) -> Unit,
+    terminalContent: @Composable (Modifier) -> Unit,
+    gitContent: @Composable (Modifier) -> Unit,
 ) {
     when (state.compactDestination) {
         CompactDestination.Editor -> Unit
@@ -270,15 +306,9 @@ private fun CompactDestinationPane(
             onEvent = onExplorer,
             modifier = Modifier.semantics { contentDescription = WorkshopSemantics.FILES_PANE },
         )
-        CompactDestination.Clanker -> ClankerPlaceholder()
-        CompactDestination.Terminal -> FeaturePlaceholder(
-            title = "Terminal",
-            body = "Sandbox shell lands later. This is a sandbox shell, not a Linux distro.",
-        )
-        CompactDestination.Git -> FeaturePlaceholder(
-            title = "Git",
-            body = "Local status/diff/commit lands later. No clone/pull/push.",
-        )
+        CompactDestination.Clanker -> clankerContent(Modifier.fillMaxSize())
+        CompactDestination.Terminal -> terminalContent(Modifier.fillMaxSize())
+        CompactDestination.Git -> gitContent(Modifier.fillMaxSize())
     }
 }
 
@@ -293,6 +323,9 @@ private fun MediumBody(
     onCursor: (WorkspacePath, Int, Int) -> Unit,
     onWeights: (Float, Float, Float, Float) -> Unit,
     onBottomTab: (BottomTab) -> Unit,
+    clankerContent: @Composable (Modifier) -> Unit,
+    terminalContent: @Composable (Modifier) -> Unit,
+    gitContent: @Composable (Modifier) -> Unit,
 ) {
     var filesW by remember(state.chrome.filesWeight) { mutableFloatStateOf(state.chrome.filesWeight) }
     var editorW by remember(state.chrome.editorWeight) { mutableFloatStateOf(state.chrome.editorWeight) }
@@ -328,6 +361,8 @@ private fun MediumBody(
                 onWeights = { b -> onWeights(filesW, editorW, state.chrome.clankerWeight, b) },
                 onBottomTab = onBottomTab,
                 modifier = Modifier.weight(1f),
+                terminalContent = terminalContent,
+                gitContent = gitContent,
             )
         }
         if (state.chrome.clankerOverlay) {
@@ -338,7 +373,7 @@ private fun MediumBody(
                     .align(Alignment.CenterEnd),
                 tonalElevation = 4.dp,
             ) {
-                ClankerPlaceholder()
+                clankerContent(Modifier.fillMaxSize())
             }
         }
     }
@@ -355,6 +390,9 @@ private fun ExpandedBody(
     onCursor: (WorkspacePath, Int, Int) -> Unit,
     onWeights: (Float, Float, Float, Float) -> Unit,
     onBottomTab: (BottomTab) -> Unit,
+    clankerContent: @Composable (Modifier) -> Unit,
+    terminalContent: @Composable (Modifier) -> Unit,
+    gitContent: @Composable (Modifier) -> Unit,
 ) {
     var filesW by remember(state.chrome.filesWeight) { mutableFloatStateOf(state.chrome.filesWeight) }
     var editorW by remember(state.chrome.editorWeight) { mutableFloatStateOf(state.chrome.editorWeight) }
@@ -399,6 +437,8 @@ private fun ExpandedBody(
                 bottomW = (bottomW + delta).coerceIn(0.12f, 0.6f)
             },
             modifier = Modifier.weight(editorW.coerceAtLeast(0.3f)).widthIn(min = 240.dp),
+            terminalContent = terminalContent,
+            gitContent = gitContent,
         )
         if (state.chrome.clankerDocked || state.chrome.clankerVisible) {
             VerticalPaneHandle(
@@ -410,8 +450,8 @@ private fun ExpandedBody(
                 },
                 onDragEnd = { onWeights(filesW, editorW, clankerW, bottomW) },
             )
-            ClankerPlaceholder(
-                modifier = Modifier
+            clankerContent(
+                Modifier
                     .weight(clankerW.coerceAtLeast(0.12f))
                     .widthIn(min = 160.dp),
             )
@@ -432,6 +472,8 @@ private fun EditorColumn(
     onBottomTab: (BottomTab) -> Unit,
     modifier: Modifier = Modifier,
     onBottomDrag: ((Float, Float) -> Unit)? = null,
+    terminalContent: @Composable (Modifier) -> Unit = {},
+    gitContent: @Composable (Modifier) -> Unit = {},
 ) {
     var colH by remember { mutableFloatStateOf(1f) }
     Column(modifier.fillMaxSize().onSizeChanged { colH = it.height.toFloat().coerceAtLeast(1f) }) {
@@ -456,6 +498,8 @@ private fun EditorColumn(
                 selected = state.chrome.bottomTab,
                 onSelect = onBottomTab,
                 modifier = Modifier.weight(bottomWeight.coerceAtLeast(0.12f)),
+                terminalContent = terminalContent,
+                gitContent = gitContent,
             )
         }
     }
@@ -469,6 +513,7 @@ private fun WorkshopOverlays(
     onDismissPalette: () -> Unit,
     onFileQuery: (String) -> Unit,
     onCommand: (WorkshopCommand) -> Unit,
+    settingsContent: @Composable (() -> Unit) -> Unit,
 ) {
     when (state.palette) {
         WorkshopPaletteKind.None -> Unit
@@ -488,7 +533,7 @@ private fun WorkshopOverlays(
             onEvent = onSearch,
             onDismiss = onDismissPalette,
         )
-        WorkshopPaletteKind.Settings -> SettingsPlaceholder(onDismiss = onDismissPalette)
+        WorkshopPaletteKind.Settings -> settingsContent(onDismissPalette)
     }
 }
 
@@ -513,6 +558,16 @@ private fun WorkshopTopBar(
         ) {
             Text("$mark$name", style = PathTextStyle, modifier = Modifier.weight(1f))
             TextButton(onClick = onSave) { Text("Save") }
+            IconButton(
+                onClick = onSettings,
+                modifier = Modifier.semantics { contentDescription = WorkshopSemantics.SETTINGS_BUTTON },
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
             if (sizeClass != SizeClass.Compact) {
                 TextButton(onClick = onToggleFiles) { Text("Files") }
                 TextButton(onClick = onToggleClanker) { Text("Clanker") }

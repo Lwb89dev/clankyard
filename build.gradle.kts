@@ -8,3 +8,9 @@ plugins {
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.protobuf) apply false
 }
+
+tasks.register("licenseCheck") {
+    group = "verification"
+    description = "Fail if GPL Termux artifacts appear on the app runtime classpath."
+    dependsOn(":app:licenseCheck")
+}

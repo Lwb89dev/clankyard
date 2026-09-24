@@ -13,8 +13,21 @@ import dev.clankyard.core.ui.DataStoreWorkspaceUiStore
 import dev.clankyard.core.ui.WorkspaceUiStore
 import dev.clankyard.ai.patch.CachingPatchEngineFactory
 import dev.clankyard.ai.patch.PatchEngineFactory
+import dev.clankyard.ai.provider.http.ProviderHttp
+import dev.clankyard.ai.secret.DefaultSecretFilter
+import dev.clankyard.ai.secret.SecretFilter
 import dev.clankyard.ai.tools.DefaultToolRegistry
 import dev.clankyard.ai.tools.ToolRegistry
+import dev.clankyard.core.security.SecureCredentialStore
+import dev.clankyard.feature.settings.WorkshopSettingsStore
+import dev.clankyard.core.model.Credential
+import dev.clankyard.feature.settings.ExecutionKind
+import dev.clankyard.terminal.api.ExecutionBackend
+import dev.clankyard.terminal.api.SwitchingExecutionBackend
+import dev.clankyard.terminal.local.LocalProcessBackend
+import dev.clankyard.terminal.ssh.SshConnectRequest
+import dev.clankyard.terminal.ssh.SshExecutionBackend
+import okhttp3.OkHttpClient
 import dev.clankyard.search.TextSearch
 import dev.clankyard.search.WorkspaceTextSearch
 import dev.clankyard.diff.DiffEngine
@@ -93,4 +106,53 @@ object AppModule {
     @Provides
     @Singleton
     fun provideProjectSearch(): ProjectSearch = InProcessProjectSearch()
+
+    @Provides
+    @Singleton
+    fun provideSecretFilter(): SecretFilter = DefaultSecretFilter()
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(): OkHttpClient = ProviderHttp.client()
+
+    @Provides
+    @Singleton
+    fun provideExecutionBackend(
+        store: WorkshopSettingsStore,
+        credentials: SecureCredentialStore,
+    ): ExecutionBackend {
+        val local = LocalProcessBackend()
+        val ssh = SshExecutionBackend(
+            load = {
+                val snap = store.read()
+                if (snap.sshHost.isBlank() || snap.sshUser.isBlank()) {
+                    null
+                } else {
+                    val secret = credentials.get(WorkshopSettingsStore.sshSlot(snap.sshHost))
+                    val password = (secret as? Credential.ApiKey)?.secret
+                    SshConnectRequest(
+                        host = snap.sshHost.trim(),
+                        port = snap.sshPort,
+                        username = snap.sshUser.trim(),
+                        password = password,
+                        remoteCwd = snap.sshRemoteCwd.trim().ifBlank { null },
+                        fingerprint = snap.sshHostFingerprint.trim().ifBlank { null },
+                    )
+                }
+            },
+            onUnknownHost = { fingerprint ->
+                store.write(store.read().copy(sshPendingFingerprint = fingerprint))
+            },
+        )
+        return SwitchingExecutionBackend(local, ssh) {
+            store.read().execution == ExecutionKind.Ssh
+        }
+    }
+
+    @Provides
+    @Singleton
+    fun provideWorkshopSettingsStore(
+        @ApplicationContext context: Context,
+        credentials: SecureCredentialStore,
+    ): WorkshopSettingsStore = WorkshopSettingsStore(context, credentials)
 }

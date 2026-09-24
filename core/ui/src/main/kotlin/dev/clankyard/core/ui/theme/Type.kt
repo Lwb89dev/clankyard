@@ -6,32 +6,35 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+val TerminalFont = FontFamily.Monospace
+
 val PathTextStyle = TextStyle(
-    fontFamily = FontFamily.Monospace,
+    fontFamily = TerminalFont,
     fontWeight = FontWeight.Medium,
     fontSize = 13.sp,
     lineHeight = 18.sp,
     letterSpacing = 0.sp,
 )
 
-internal val ClankyardTypography = Typography(
-    bodyLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-    ),
-    bodyMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-    ),
-    labelLarge = PathTextStyle,
-    titleLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-    ),
-)
+private fun TextStyle.terminal(): TextStyle = copy(fontFamily = TerminalFont)
+
+internal val ClankyardTypography: Typography = run {
+    val base = Typography()
+    Typography(
+        displayLarge = base.displayLarge.terminal(),
+        displayMedium = base.displayMedium.terminal(),
+        displaySmall = base.displaySmall.terminal(),
+        headlineLarge = base.headlineLarge.terminal(),
+        headlineMedium = base.headlineMedium.terminal(),
+        headlineSmall = base.headlineSmall.terminal(),
+        titleLarge = base.titleLarge.terminal(),
+        titleMedium = base.titleMedium.terminal(),
+        titleSmall = base.titleSmall.terminal(),
+        bodyLarge = base.bodyLarge.terminal(),
+        bodyMedium = base.bodyMedium.terminal(),
+        bodySmall = base.bodySmall.terminal(),
+        labelLarge = PathTextStyle,
+        labelMedium = base.labelMedium.terminal(),
+        labelSmall = base.labelSmall.terminal(),
+    )
+}
