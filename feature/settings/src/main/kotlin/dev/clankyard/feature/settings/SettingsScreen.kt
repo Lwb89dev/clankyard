@@ -6,6 +6,10 @@ import android.content.ContextWrapper
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,6 +17,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -20,11 +26,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -46,6 +57,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import dev.clankyard.core.ui.theme.WorkshopTheme
+import dev.clankyard.core.ui.theme.WorkshopWindowSurface
 
 private const val BYOK_COPY =
     "API keys live on this device (Android Keystore). A compromised or rooted " +
@@ -64,6 +77,7 @@ fun SettingsScreen(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     amber: AmberBridge? = null,
+    onThemeChanged: (WorkshopTheme) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -113,14 +127,21 @@ fun SettingsScreen(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = true),
     ) {
-        Surface(
+        WorkshopWindowSurface(
             modifier = modifier
                 .fillMaxWidth(0.96f)
-                .fillMaxHeight(0.92f),
-            color = MaterialTheme.colorScheme.surface,
+                .fillMaxHeight(0.92f)
+                .imePadding(),
             shape = MaterialTheme.shapes.large,
         ) {
-            SettingsScreenContent(state, viewModel::onEvent, onDismiss, bridge, loginLauncher::launch)
+            SettingsScreenContent(
+                state = state,
+                onEvent = viewModel::onEvent,
+                onDismiss = onDismiss,
+                amber = bridge,
+                launchAmber = loginLauncher::launch,
+                onThemeChanged = onThemeChanged,
+            )
         }
     }
 }
@@ -133,6 +154,7 @@ fun SettingsScreenContent(
     amber: AmberBridge? = null,
     launchAmber: ((android.content.Intent) -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onThemeChanged: (WorkshopTheme) -> Unit = {},
 ) {
     val view = LocalView.current
     val lockScreen = state.keyRevealed || state.keyDraft.isNotEmpty() || state.sshPasswordDraft.isNotEmpty()
@@ -154,6 +176,20 @@ fun SettingsScreenContent(
             "The workshop works with no AI key. Secrets never leave this device.",
             style = MaterialTheme.typography.bodyMedium,
         )
+        SectionTitle("Theme")
+        Text("Choose the accent color for the workshop.", style = MaterialTheme.typography.bodySmall)
+        ChipRow {
+            WorkshopTheme.entries.forEach { theme ->
+                FilterChip(
+                    selected = state.settings.theme == theme,
+                    onClick = {
+                        onEvent(SettingsEvent.Theme(theme))
+                        onThemeChanged(theme)
+                    },
+                    label = { Text(theme.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                )
+            }
+        }
         SectionTitle("AI provider")
         ChipRow {
             SettingsProvider.entries.forEach { provider ->
@@ -164,54 +200,16 @@ fun SettingsScreenContent(
                 )
             }
         }
-        OutlinedTextField(
-            value = state.settings.model,
-            onValueChange = { onEvent(SettingsEvent.Model(it)) },
-            label = { Text("Model") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
-        if (state.settings.provider == SettingsProvider.Compatible) {
-            OutlinedTextField(
-                value = state.settings.compatibleBaseUrl,
-                onValueChange = { onEvent(SettingsEvent.BaseUrl(it)) },
-                label = { Text("Base URL (https)") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-            Text("http:// is rejected. Local Ollama is post-MVP.", style = MaterialTheme.typography.bodySmall)
-        }
-        Text(
-            if (state.settings.hasKey) "Key on file: •••• (masked)" else "No key stored",
-            style = MaterialTheme.typography.bodySmall,
-        )
-        OutlinedTextField(
-            value = state.keyDraft,
-            onValueChange = { onEvent(SettingsEvent.KeyDraft(it)) },
-            label = { Text("API key") },
-            visualTransformation = if (state.keyRevealed) {
-                VisualTransformation.None
-            } else {
-                PasswordVisualTransformation()
+        AnimatedContent(
+            targetState = state.settings.provider,
+            transitionSpec = {
+                val dir = if (targetState.ordinal > initialState.ordinal) 1 else -1
+                slideInHorizontally { full -> dir * full } togetherWith
+                    slideOutHorizontally { full -> -dir * full }
             },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
-        Text(
-            "Paste the dashboard API key. Email/password for ChatGPT or Claude.ai is not sent anywhere.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-        ChipRow {
-            TextButton(onClick = { onEvent(SettingsEvent.Reveal(!state.keyRevealed)) }) {
-                Text(if (state.keyRevealed) "Hide" else "Reveal")
-            }
-            Button(onClick = { onEvent(SettingsEvent.RequestSaveKey) }) { Text("Save key") }
-            TextButton(onClick = { onEvent(SettingsEvent.DeleteKey) }) { Text("Delete key") }
-            Button(
-                onClick = { onEvent(SettingsEvent.TestConnection) },
-                enabled = state.settings.hasKey && !state.testing,
-            ) { Text(if (state.testing) "Testing…" else "Test connection") }
+            label = "provider-pane",
+        ) { provider ->
+            ProviderPane(provider, state, onEvent)
         }
         Text(BYOK_COPY, style = MaterialTheme.typography.bodySmall)
         HorizontalDivider()
@@ -274,6 +272,115 @@ fun SettingsScreenContent(
     }
     if (state.pendingSshAck) {
         AckDialog(onEvent, confirm = SettingsEvent.ConfirmSshAck)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ModelMenu(
+    provider: SettingsProvider,
+    state: SettingsUiState,
+    onEvent: (SettingsEvent) -> Unit,
+) {
+    var expanded by remember(provider) { mutableStateOf(false) }
+    val options = state.availableModels.ifEmpty { ModelCatalog.seeds(provider) }
+    val query = state.settings.model
+    val shown = options.filter { it.contains(query, ignoreCase = true) }.ifEmpty { options }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = {
+                onEvent(SettingsEvent.Model(it))
+                expanded = true
+            },
+            label = { Text("Model") },
+            placeholder = {
+                if (provider.defaultModel.isNotEmpty()) Text(provider.defaultModel)
+            },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, enabled = true)
+                .fillMaxWidth(),
+            singleLine = true,
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 320.dp),
+        ) {
+            shown.forEach { id ->
+                DropdownMenuItem(
+                    text = { Text(id) },
+                    onClick = {
+                        onEvent(SettingsEvent.Model(id))
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProviderPane(
+    provider: SettingsProvider,
+    state: SettingsUiState,
+    onEvent: (SettingsEvent) -> Unit,
+) {
+    val uriHandler = LocalUriHandler.current
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+        Text(provider.label, style = MaterialTheme.typography.titleSmall)
+        Text(provider.blurb, style = MaterialTheme.typography.bodySmall)
+        if (provider.docsUrl.isNotEmpty()) {
+            TextButton(onClick = { uriHandler.openUri(provider.docsUrl) }) {
+                Text(provider.docsLabel)
+            }
+        }
+        ModelMenu(provider, state, onEvent)
+        state.status?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        if (provider == SettingsProvider.Compatible || provider == SettingsProvider.Ollama) {
+            OutlinedTextField(
+                value = state.settings.compatibleBaseUrl,
+                onValueChange = { onEvent(SettingsEvent.BaseUrl(it)) },
+                label = {
+                    Text(if (provider == SettingsProvider.Ollama) "Ollama URL" else "Base URL (https)")
+                },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+        }
+        if (provider.keyRequired) {
+            Text(
+                if (state.settings.hasKey) "Key on file: •••• (masked)" else "No key stored",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedTextField(
+                value = state.keyDraft,
+                onValueChange = { onEvent(SettingsEvent.KeyDraft(it)) },
+                label = { Text("API key") },
+                visualTransformation = if (state.keyRevealed) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            ChipRow {
+                TextButton(onClick = { onEvent(SettingsEvent.Reveal(!state.keyRevealed)) }) {
+                    Text(if (state.keyRevealed) "Hide" else "Reveal")
+                }
+                Button(onClick = { onEvent(SettingsEvent.RequestSaveKey) }) { Text("Save key") }
+                TextButton(onClick = { onEvent(SettingsEvent.DeleteKey) }) { Text("Delete key") }
+            }
+        } else {
+            Text("No API key required. The daemon must be reachable at the URL.", style = MaterialTheme.typography.bodySmall)
+        }
+        Button(
+            onClick = { onEvent(SettingsEvent.TestConnection) },
+            enabled = (state.settings.hasKey || !provider.keyRequired) && !state.testing,
+        ) { Text(if (state.testing) "Testing…" else "Test connection") }
     }
 }
 

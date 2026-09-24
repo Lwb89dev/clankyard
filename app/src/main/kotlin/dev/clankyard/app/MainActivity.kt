@@ -7,11 +7,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import dev.clankyard.app.shell.FeaturePlaceholder
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,6 +29,7 @@ import dev.clankyard.core.model.WorkspaceId
 import dev.clankyard.core.model.WorkspacePath
 import dev.clankyard.core.ui.restoreSizeClass
 import dev.clankyard.core.ui.theme.ClankyardTheme
+import dev.clankyard.core.ui.theme.WorkshopWindowSurface
 import dev.clankyard.editor.CodeEditorController
 import dev.clankyard.editor.EditorSession
 import dev.clankyard.editor.OpenDocument
@@ -38,24 +40,30 @@ import dev.clankyard.feature.git.GitScreen
 import dev.clankyard.feature.search.SearchUiState
 import dev.clankyard.feature.search.SearchViewModel
 import dev.clankyard.feature.settings.SettingsScreen
+import dev.clankyard.feature.settings.WorkshopSettingsStore
+import dev.clankyard.core.ui.theme.WorkshopTheme
 import dev.clankyard.feature.terminal.TerminalPane
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val workspaceSession: WorkspaceSessionViewModel by viewModels()
     private val editorSession: EditorSessionViewModel by viewModels()
+    @Inject lateinit var workshopSettings: WorkshopSettingsStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            ClankyardTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+            var selectedTheme by remember { mutableStateOf(workshopSettings.read().theme) }
+            ClankyardTheme(theme = selectedTheme) {
+                WorkshopWindowSurface(modifier = Modifier.fillMaxSize()) {
                     ClankyardApp(
                         workspaceSession = workspaceSession,
                         editorSession = editorSession,
+                        onThemeChanged = { selectedTheme = it },
                     )
                 }
             }
@@ -73,6 +81,7 @@ class MainActivity : ComponentActivity() {
 fun ClankyardApp(
     workspaceSession: WorkspaceSessionViewModel,
     editorSession: EditorSessionViewModel,
+    onThemeChanged: (WorkshopTheme) -> Unit = {},
 ) {
     val workspace by workspaceSession.workspace.collectAsStateWithLifecycle()
     val records by workspaceSession.records.collectAsStateWithLifecycle()
@@ -90,6 +99,7 @@ fun ClankyardApp(
         workshopName = current.displayName,
         workspaceSession = workspaceSession,
         editorSession = editorSession,
+        onThemeChanged = onThemeChanged,
     )
 }
 
@@ -99,6 +109,7 @@ private fun WorkshopScreen(
     workshopName: String,
     workspaceSession: WorkspaceSessionViewModel,
     editorSession: EditorSessionViewModel,
+    onThemeChanged: (WorkshopTheme) -> Unit,
 ) {
     val sizeClass = rememberWorkshopSizeClass()
     val heightCompact = rememberHeightCompact()
@@ -163,7 +174,10 @@ private fun WorkshopScreen(
         onToggleBottom = workspaceSession::toggleBottom,
         onSave = workspaceSession::saveActive,
         onOpenPalette = workspaceSession::openPalette,
-        onDismissPalette = { workspaceSession.dismissPalette() },
+        onDismissPalette = {
+            clankerVm?.refreshKeyFlag()
+            workspaceSession.dismissPalette()
+        },
         onFileQuery = workspaceSession::setFileQuery,
         onCommand = workspaceSession::runCommand,
         onCloseWorkspace = workspaceSession::closeWorkspace,
@@ -175,8 +189,14 @@ private fun WorkshopScreen(
         },
         settingsContent = { onDismiss ->
             val vm = settingsVm
-            if (vm != null) SettingsScreen(vm, onDismiss)
-            else FeaturePlaceholder("Settings", "Unavailable", Modifier)
+            if (vm != null) {
+                SettingsScreen(vm, onDismiss = {
+                    clankerVm?.refreshKeyFlag()
+                    onDismiss()
+                }, onThemeChanged = onThemeChanged)
+            } else {
+                FeaturePlaceholder("Settings", "Unavailable", Modifier)
+            }
         },
     )
 }

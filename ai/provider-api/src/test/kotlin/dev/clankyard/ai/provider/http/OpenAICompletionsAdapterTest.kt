@@ -109,6 +109,24 @@ class OpenAICompletionsAdapterTest {
     }
 
     @Test
+    fun creditBalanceIsNotRetryable() = runBlocking {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(429)
+                .setBody(
+                    """{"error":{"message":"No credits remaining","type":"insufficient_quota",""" +
+                        """"code":"credit_balance_exhausted"}}""",
+                ),
+        )
+        val events = adapter().chat(sampleRequest(), credential).toList()
+        val error = events.filterIsInstance<ChatEvent.Error>().single()
+        assertFalse(error.retryable)
+        assertTrue(error.message.contains("prepaid API credits"))
+        assertTrue(error.message.contains("ChatGPT Plus"))
+        assertFalse(error.message.contains("sk-test-secret-value"))
+    }
+
+    @Test
     fun cancelAbortsOkHttpCall() = runBlocking {
         val released = CountDownLatch(1)
         server.dispatcher = object : Dispatcher() {

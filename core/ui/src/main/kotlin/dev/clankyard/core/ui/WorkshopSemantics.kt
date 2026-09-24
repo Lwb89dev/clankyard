@@ -12,6 +12,7 @@ object WorkshopSemantics {
     const val NAV_TERMINAL = "Terminal"
     const val NAV_GIT = "Git"
     const val NAV_SETTINGS_OVERFLOW = "Settings overflow"
+    const val CLOSE_WORKSHOP = "Close workshop"
     const val SETTINGS_BUTTON = "Settings"
     const val HANDLE_FILES = "Resize files pane"
     const val HANDLE_CLANKER = "Resize Clanker pane"

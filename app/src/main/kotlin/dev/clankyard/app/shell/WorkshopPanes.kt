@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SecondaryScrollableTabRow
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,6 +37,7 @@ import dev.clankyard.core.ui.BottomTab
 import dev.clankyard.core.ui.OpenTab
 import dev.clankyard.core.ui.WorkshopSemantics
 import dev.clankyard.core.ui.theme.PathTextStyle
+import dev.clankyard.core.ui.theme.WorkshopWindowSurface
 import dev.clankyard.editor.CodeEditorController
 import dev.clankyard.editor.CodeEditorPane
 import dev.clankyard.editor.OpenDocument
@@ -261,7 +261,7 @@ fun HorizontalPaneHandle(
 
 @Composable
 fun SettingsPlaceholder(onDismiss: () -> Unit) {
-    Surface(Modifier.fillMaxSize()) {
+    WorkshopWindowSurface(Modifier.fillMaxSize()) {
         Column(Modifier.padding(16.dp)) {
             Text("Settings", style = MaterialTheme.typography.titleLarge)
             Text(

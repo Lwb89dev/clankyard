@@ -27,10 +27,14 @@ class BackupAndNetworkConfigTest {
     }
 
     @Test
-    fun networkSecurityDisablesCleartext() {
+    fun networkSecurityDisablesCleartextExceptLoopback() {
         val xml = readXml("network_security_config.xml")
-        assertTrue(xml.contains("cleartextTrafficPermitted=\"false\""))
-        assertFalse(xml.contains("cleartextTrafficPermitted=\"true\""))
+        val base = section(xml, "base-config")
+        assertTrue(base.contains("cleartextTrafficPermitted=\"false\""))
+        val local = section(xml, "domain-config")
+        assertTrue(local.contains("cleartextTrafficPermitted=\"true\""))
+        assertTrue(local.contains("127.0.0.1"))
+        assertTrue(local.contains("localhost"))
     }
 
     @Test
@@ -64,6 +68,12 @@ class BackupAndNetworkConfigTest {
     }
 
     companion object {
-        private val SENSITIVE = listOf("credentials/", "drafts/", "journal/", "workspaces/")
+        private val SENSITIVE = listOf(
+            "credentials/",
+            "drafts/",
+            "journal/",
+            "workspaces/",
+            "environment/",
+        )
     }
 }

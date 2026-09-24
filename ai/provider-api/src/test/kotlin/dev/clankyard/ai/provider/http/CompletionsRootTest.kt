@@ -52,6 +52,15 @@ class CompletionsRootTest {
     }
 
     @Test
+    fun loopbackHttpAllowedForLocalModels() {
+        val root = normalizeCompletionsRoot("http://127.0.0.1:11434", allowLoopbackHttp = true)
+        assertEquals("http://127.0.0.1:11434/v1".toHttpUrl(), root)
+        assertThrows(CleartextEndpointException::class.java) {
+            normalizeCompletionsRoot("http://192.168.1.10:11434", allowLoopbackHttp = true)
+        }
+    }
+
+    @Test
     fun invalidUrlRejected() {
         assertThrows(IllegalArgumentException::class.java) {
             normalizeCompletionsRoot("not a url")

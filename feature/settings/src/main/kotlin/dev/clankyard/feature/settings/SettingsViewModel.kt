@@ -1,6 +1,7 @@
 package dev.clankyard.feature.settings
 
 import dev.clankyard.core.model.Credential
+import dev.clankyard.core.ui.theme.WorkshopTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -8,8 +9,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-fun interface LlmProbe {
+interface LlmProbe {
     suspend fun modelIds(settings: WorkshopSettings, credential: Credential): List<String>
+    suspend fun ping(settings: WorkshopSettings, credential: Credential, model: String) {}
 }
 
 enum class AmberPending { None, EncryptKey, DecryptForTest }
@@ -26,11 +28,13 @@ data class SettingsUiState(
     val pendingCiphertext: String = "",
     val amberInstalled: Boolean = false,
     val testing: Boolean = false,
+    val availableModels: List<String> = emptyList(),
     val status: String? = null,
 )
 
 sealed interface SettingsEvent {
     data class Provider(val value: SettingsProvider) : SettingsEvent
+    data class Theme(val value: WorkshopTheme) : SettingsEvent
     data class Model(val value: String) : SettingsEvent
     data class BaseUrl(val value: String) : SettingsEvent
     data class KeyDraft(val value: String) : SettingsEvent
@@ -75,6 +79,7 @@ class SettingsViewModel(
             it.copy(
                 amberInstalled = amber?.isInstalled() == true,
                 bunkerDraft = it.settings.bunkerUri,
+                availableModels = cachedModels(it.settings.provider),
             )
         }
         scope.launch { refreshHasKey() }
@@ -82,21 +87,30 @@ class SettingsViewModel(
 
     fun onEvent(event: SettingsEvent) {
         when (event) {
-            is SettingsEvent.Provider -> update { it.copy(provider = event.value) }
-            is SettingsEvent.Model -> update { it.copy(model = event.value) }
-            is SettingsEvent.BaseUrl -> {
-                if (event.value.trim().startsWith("http://", ignoreCase = true)) {
-                    _state.update {
-                        it.copy(
-                            settings = it.settings.copy(compatibleBaseUrl = event.value),
-                            status = "http:// is rejected. Local Ollama is post-MVP.",
-                        )
+            is SettingsEvent.Provider -> {
+                val defaults = SettingsProvider.entries.map { it.defaultModel }.filter { it.isNotEmpty() }.toSet()
+                update { snap ->
+                    val model = if (
+                        snap.model.isBlank() ||
+                        snap.model in defaults ||
+                        !ModelCatalog.isChatModel(event.value, snap.model)
+                    ) {
+                        event.value.defaultModel
+                    } else {
+                        snap.model
                     }
-                } else {
-                    _state.update { it.copy(status = null) }
-                    update { it.copy(compatibleBaseUrl = event.value) }
+                    val url = when (event.value) {
+                        SettingsProvider.Ollama ->
+                            snap.compatibleBaseUrl.ifBlank { "http://127.0.0.1:11434" }
+                        else -> snap.compatibleBaseUrl
+                    }
+                    snap.copy(provider = event.value, model = model, compatibleBaseUrl = url)
                 }
+                _state.update { it.copy(availableModels = cachedModels(event.value)) }
             }
+            is SettingsEvent.Theme -> update { it.copy(theme = event.value) }
+            is SettingsEvent.Model -> update { it.copy(model = event.value) }
+            is SettingsEvent.BaseUrl -> onBaseUrl(event.value)
             is SettingsEvent.KeyDraft -> _state.update { it.copy(keyDraft = event.value) }
             is SettingsEvent.Reveal -> _state.update { it.copy(keyRevealed = event.value) }
             SettingsEvent.RequestSaveKey -> requestSave()
@@ -146,6 +160,38 @@ class SettingsViewModel(
         }
     }
 
+    private fun onBaseUrl(value: String) {
+        val provider = _state.value.settings.provider
+        val trimmed = value.trim()
+        if (provider == SettingsProvider.Ollama) {
+            val host = trimmed.substringAfter("://").substringBefore("/").substringBefore(":")
+            val loopback = host == "127.0.0.1" || host.equals("localhost", true) || host == "10.0.2.2"
+            if (trimmed.startsWith("http://", ignoreCase = true) && !loopback) {
+                _state.update {
+                    it.copy(
+                        settings = it.settings.copy(compatibleBaseUrl = value),
+                        status = "http:// only on localhost. SSH-tunnel a private Ollama: ssh -L 11434:127.0.0.1:11434 user@host",
+                    )
+                }
+                return
+            }
+            _state.update { it.copy(status = null) }
+            update { it.copy(compatibleBaseUrl = value) }
+            return
+        }
+        if (trimmed.startsWith("http://", ignoreCase = true)) {
+            _state.update {
+                it.copy(
+                    settings = it.settings.copy(compatibleBaseUrl = value),
+                    status = "http:// is rejected here. Use the Ollama tab for localhost.",
+                )
+            }
+        } else {
+            _state.update { it.copy(status = null) }
+            update { it.copy(compatibleBaseUrl = value) }
+        }
+    }
+
     private fun update(transform: (WorkshopSettings) -> WorkshopSettings) {
         val next = transform(_state.value.settings)
         store.write(next)
@@ -165,17 +211,21 @@ class SettingsViewModel(
             }
             return
         }
-        if (secret.length < 8) {
+        val settings = _state.value.settings
+        if (settings.provider.keyRequired && secret.length < 8) {
             _state.update { it.copy(status = "API key missing or too short") }
             return
         }
-        val settings = _state.value.settings
         if (settings.provider == SettingsProvider.Compatible) {
             val url = settings.compatibleBaseUrl.trim()
             if (url.isEmpty() || url.startsWith("http://", ignoreCase = true)) {
-                _state.update { it.copy(status = "http:// is rejected. Local Ollama is post-MVP.") }
+                _state.update { it.copy(status = "http:// is rejected. Use Ollama for localhost.") }
                 return
             }
+        }
+        if (settings.provider == SettingsProvider.Ollama && secret.isEmpty()) {
+            _state.update { it.copy(status = "Ollama does not need a key. Test connection when the daemon is up.") }
+            return
         }
         if (!_state.value.settings.byokAcknowledged) {
             _state.update { it.copy(pendingAck = true) }
@@ -202,9 +252,13 @@ class SettingsViewModel(
     }
 
     private suspend fun saveKey(secret: String) {
+        val snap = _state.value.settings
+        if (snap.model.isBlank() && snap.provider.defaultModel.isNotEmpty()) {
+            update { it.copy(model = it.provider.defaultModel) }
+        }
         store.saveKey(_state.value.settings, secret)
         _state.update {
-            it.copy(keyDraft = "", keyRevealed = false, status = "Key saved (masked). Direct BYOK from a client is advanced.")
+            it.copy(keyDraft = "", keyRevealed = false, status = "Key saved (masked). Tap Test connection.")
         }
         refreshHasKey()
     }
@@ -267,7 +321,17 @@ class SettingsViewModel(
         val snap = _state.value.settings
         val has = store.loadKey(snap)
         val ssh = store.loadSshPassword(snap)
-        _state.update { it.copy(settings = it.settings.copy(hasKey = has, hasSshPassword = ssh)) }
+        _state.update {
+            it.copy(
+                settings = it.settings.copy(hasKey = has, hasSshPassword = ssh),
+                availableModels = cachedModels(snap.provider),
+            )
+        }
+    }
+
+    private fun cachedModels(provider: SettingsProvider): List<String> {
+        val stored = store.readModels(provider)
+        return stored.ifEmpty { ModelCatalog.seeds(provider) }
     }
 
     private fun saveBunker() {
@@ -311,6 +375,7 @@ class SettingsViewModel(
         }
         val snap = _state.value.settings
         val cred = store.credential(snap)
+            ?: if (snap.provider == SettingsProvider.Ollama) Credential.ApiKey("ollama") else null
         if (cred == null) {
             _state.update { it.copy(status = "Save an API key first.") }
             return
@@ -345,14 +410,32 @@ class SettingsViewModel(
         val result = runCatching { probe.modelIds(snap, credential) }
         result.fold(
             onSuccess = { ids ->
-                if (snap.model.isBlank() && ids.isNotEmpty()) {
-                    update { it.copy(model = ids.first()) }
+                val merged = ModelCatalog.merge(snap.provider, ids)
+                store.writeModels(snap.provider, merged)
+                if (snap.model.isBlank() && merged.isNotEmpty()) {
+                    update { it.copy(model = merged.first()) }
+                }
+                val pingModel = ModelCatalog.pingModel(snap.provider, snap.model, merged)
+                if (pingModel.isNotEmpty()) {
+                    val ping = runCatching { probe.ping(_state.value.settings, credential, pingModel) }
+                    ping.exceptionOrNull()?.let { err ->
+                        _state.update {
+                            it.copy(
+                                testing = false,
+                                amberPending = AmberPending.None,
+                                availableModels = merged,
+                                status = err.message ?: "Chat ping failed.",
+                            )
+                        }
+                        return
+                    }
                 }
                 _state.update {
                     it.copy(
                         testing = false,
                         amberPending = AmberPending.None,
-                        status = "Connected. ${ids.size} models. Key stays on this device.",
+                        availableModels = merged,
+                        status = "Connected. ${merged.size} chat models. Chat ping ok on $pingModel.",
                     )
                 }
             },

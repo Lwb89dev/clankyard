@@ -7,12 +7,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
@@ -21,11 +23,23 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -47,6 +61,7 @@ fun ClankerPane(viewModel: ClankerViewModel?, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
+            .imePadding()
             .padding(8.dp)
             .semantics { contentDescription = WorkshopSemantics.CLANKER_PANE },
     ) {
@@ -114,13 +129,26 @@ fun ClankerPane(viewModel: ClankerViewModel?, modifier: Modifier = Modifier) {
         OutlinedTextField(
             value = state.draft,
             onValueChange = { viewModel.onEvent(ClankerEvent.Draft(it)) },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
+                    if (event.key != Key.Enter && event.key != Key.NumPadEnter) return@onPreviewKeyEvent false
+                    if (event.isShiftPressed) return@onPreviewKeyEvent false
+                    if (state.enterSend == "newline") return@onPreviewKeyEvent false
+                    viewModel.onEvent(ClankerEvent.RequestSend)
+                    true
+                },
             label = { Text("Ask the Clanker") },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+            keyboardActions = KeyboardActions(
+                onSend = { viewModel.onEvent(ClankerEvent.RequestSend) },
+            ),
         )
         Row {
             Button(
                 onClick = { viewModel.onEvent(ClankerEvent.Send) },
-                enabled = !state.running && !state.needsKey,
+                enabled = !state.running,
             ) { Text("Send") }
             TextButton(
                 onClick = { viewModel.onEvent(ClankerEvent.Cancel) },
@@ -128,4 +156,38 @@ fun ClankerPane(viewModel: ClankerViewModel?, modifier: Modifier = Modifier) {
             ) { Text("Cancel") }
         }
     }
+    if (state.pendingEnter) {
+        EnterSendDialog(viewModel)
+    }
+}
+
+@Composable
+private fun EnterSendDialog(viewModel: ClankerViewModel) {
+    var rememberChoice by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = { viewModel.onEvent(ClankerEvent.CancelEnter(false)) },
+        title = { Text("Send this message?") },
+        text = {
+            Column {
+                Text("Enter was pressed. Send to the Clanker, or insert a newline?")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = rememberChoice,
+                        onCheckedChange = { rememberChoice = it },
+                    )
+                    Text("Remember this choice")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { viewModel.onEvent(ClankerEvent.ConfirmEnter(rememberChoice)) }) {
+                Text("Send")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { viewModel.onEvent(ClankerEvent.CancelEnter(rememberChoice)) }) {
+                Text("Newline")
+            }
+        },
+    )
 }

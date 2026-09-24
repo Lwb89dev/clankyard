@@ -26,10 +26,18 @@ class CleartextEndpointException(message: String = MESSAGE) : IllegalArgumentExc
  *
  * `https://api.x.ai` and `https://api.x.ai/v1` both become `https://api.x.ai/v1`.
  */
-fun normalizeCompletionsRoot(userInput: String): HttpUrl {
+fun isLoopbackHttpHost(host: String): Boolean {
+    val h = host.lowercase().trim()
+    return h == "localhost" || h == "127.0.0.1" || h == "[::1]" || h == "::1" || h == "10.0.2.2"
+}
+
+fun normalizeCompletionsRoot(userInput: String, allowLoopbackHttp: Boolean = false): HttpUrl {
     val parsed = userInput.trim().toHttpUrlOrNull()
         ?: throw IllegalArgumentException("invalid URL: $userInput")
-    if (!parsed.isHttps) throw CleartextEndpointException()
+    if (!parsed.isHttps) {
+        val loopback = allowLoopbackHttp && isLoopbackHttpHost(parsed.host)
+        if (!loopback) throw CleartextEndpointException()
+    }
     val segments = parsed.pathSegments.filter { it.isNotEmpty() }.toMutableList()
     stripChatCompletions(segments)
     if (segments.isEmpty()) segments += "v1"

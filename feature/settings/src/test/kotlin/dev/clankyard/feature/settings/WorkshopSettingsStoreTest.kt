@@ -27,6 +27,10 @@ class WorkshopSettingsStoreTest {
             WorkshopSettingsStore.slotId(WorkshopSettings(provider = SettingsProvider.Xai)).value,
         )
         assertEquals(
+            "llm.ollama.default",
+            WorkshopSettingsStore.slotId(WorkshopSettings(provider = SettingsProvider.Ollama)).value,
+        )
+        assertEquals(
             "llm.openai-compatible.api.example.com",
             WorkshopSettingsStore.slotId(
                 WorkshopSettings(
@@ -43,6 +47,18 @@ class WorkshopSettingsStoreTest {
             "ssh.127.0.0.1",
             WorkshopSettingsStore.sshSlot("127.0.0.1").value,
         )
+    }
+
+    @Test
+    fun modelCatalogKeepsChatModelsAndDropsWhisper() {
+        val live = listOf("gpt-4o", "whisper-1", "gpt-4.1", "dall-e-3", "o3")
+        val merged = ModelCatalog.merge(SettingsProvider.OpenAI, live)
+        assertTrue(merged.contains("gpt-4o"))
+        assertTrue(merged.contains("gpt-4.1"))
+        assertTrue(merged.contains("o3"))
+        assertTrue(!merged.contains("whisper-1"))
+        assertTrue(!merged.contains("dall-e-3"))
+        assertTrue(merged.indexOf("gpt-4o-mini") < merged.indexOf("gpt-4o") || "gpt-4o-mini" !in merged)
     }
 
     @Test

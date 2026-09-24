@@ -5,12 +5,63 @@ import android.content.SharedPreferences
 import dev.clankyard.core.model.Credential
 import dev.clankyard.core.model.CredentialSlotId
 import dev.clankyard.core.security.SecureCredentialStore
+import dev.clankyard.core.ui.theme.WorkshopTheme
 
-enum class SettingsProvider(val id: String, val label: String) {
-    OpenAI("openai", "OpenAI"),
-    Anthropic("anthropic", "Anthropic"),
-    Xai("xai", "xAI"),
-    Compatible("openai-compatible", "OpenAI Compatible"),
+enum class SettingsProvider(
+    val id: String,
+    val label: String,
+    val defaultModel: String,
+    val docsUrl: String,
+    val docsLabel: String,
+    val blurb: String,
+    val keyRequired: Boolean,
+) {
+    OpenAI(
+        "openai",
+        "OpenAI",
+        "gpt-4o-mini",
+        "https://platform.openai.com/api-keys",
+        "Get an OpenAI API key",
+        "Chat Completions. Paste a project API key from the OpenAI dashboard.",
+        true,
+    ),
+    Anthropic(
+        "anthropic",
+        "Anthropic",
+        "claude-3-5-sonnet-latest",
+        "https://console.anthropic.com/settings/keys",
+        "Get an Anthropic API key",
+        "Messages API. Paste a key from the Anthropic console.",
+        true,
+    ),
+    Xai(
+        "xai",
+        "xAI",
+        "grok-2",
+        "https://console.x.ai",
+        "Get an xAI API key",
+        "xAI Completions. Create a key in the xAI console.",
+        true,
+    ),
+    Compatible(
+        "openai-compatible",
+        "Compatible",
+        "",
+        "",
+        "",
+        "Any OpenAI-compatible HTTPS host. http:// is rejected.",
+        true,
+    ),
+    Ollama(
+        "ollama",
+        "Ollama",
+        "llama3.2",
+        "https://ollama.com/download",
+        "Install Ollama",
+        "Local or SSH-tunneled OpenAI-compatible server. Default http://127.0.0.1:11434. " +
+            "For a private box: ssh -L 11434:127.0.0.1:11434 user@host then keep localhost.",
+        false,
+    ),
 }
 
 enum class ExecutionKind(val id: String, val label: String) {
@@ -20,6 +71,7 @@ enum class ExecutionKind(val id: String, val label: String) {
 
 data class WorkshopSettings(
     val provider: SettingsProvider = SettingsProvider.OpenAI,
+    val theme: WorkshopTheme = WorkshopTheme.Rust,
     val model: String = "",
     val compatibleBaseUrl: String = "",
     val byokAcknowledged: Boolean = false,
@@ -36,6 +88,7 @@ data class WorkshopSettings(
     val nostrSignerPackage: String = "",
     val bunkerUri: String = "",
     val wrapSecretsWithNostr: Boolean = false,
+    val enterSend: String = "ask",
 )
 
 class WorkshopSettingsStore(
@@ -54,6 +107,7 @@ class WorkshopSettingsStore(
         val execution = ExecutionKind.entries.firstOrNull { it.id == executionId } ?: ExecutionKind.Local
         return WorkshopSettings(
             provider = provider,
+            theme = WorkshopTheme.fromId(prefs.getString(KEY_THEME, WorkshopTheme.Rust.id)),
             model = prefs.getString(KEY_MODEL, "").orEmpty(),
             compatibleBaseUrl = prefs.getString(KEY_BASE_URL, "").orEmpty(),
             byokAcknowledged = prefs.getBoolean(KEY_ACK, false),
@@ -68,12 +122,14 @@ class WorkshopSettingsStore(
             nostrSignerPackage = prefs.getString(KEY_NOSTR_PKG, "").orEmpty(),
             bunkerUri = prefs.getString(KEY_BUNKER, "").orEmpty(),
             wrapSecretsWithNostr = prefs.getBoolean(KEY_NOSTR_WRAP, false),
+            enterSend = prefs.getString(KEY_ENTER_SEND, ENTER_ASK) ?: ENTER_ASK,
         )
     }
 
     fun write(settings: WorkshopSettings) {
         prefs.edit()
             .putString(KEY_PROVIDER, settings.provider.id)
+            .putString(KEY_THEME, settings.theme.id)
             .putString(KEY_MODEL, settings.model)
             .putString(KEY_BASE_URL, settings.compatibleBaseUrl)
             .putBoolean(KEY_ACK, settings.byokAcknowledged)
@@ -88,7 +144,17 @@ class WorkshopSettingsStore(
             .putString(KEY_NOSTR_PKG, settings.nostrSignerPackage)
             .putString(KEY_BUNKER, settings.bunkerUri)
             .putBoolean(KEY_NOSTR_WRAP, settings.wrapSecretsWithNostr)
+            .putString(KEY_ENTER_SEND, settings.enterSend)
             .apply()
+    }
+
+    fun readModels(provider: SettingsProvider): List<String> {
+        val raw = prefs.getString(modelsKey(provider), "") ?: return emptyList()
+        return raw.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    fun writeModels(provider: SettingsProvider, ids: List<String>) {
+        prefs.edit().putString(modelsKey(provider), ids.joinToString("\n")).apply()
     }
 
     suspend fun slotFor(settings: WorkshopSettings): CredentialSlotId = slotId(settings)
@@ -129,6 +195,7 @@ class WorkshopSettingsStore(
     companion object {
         const val PREFS = "workshop_prefs"
         private const val KEY_PROVIDER = "provider"
+        private const val KEY_THEME = "theme"
         private const val KEY_MODEL = "model"
         private const val KEY_BASE_URL = "compatible_base_url"
         private const val KEY_ACK = "byok_ack"
@@ -143,6 +210,12 @@ class WorkshopSettingsStore(
         private const val KEY_NOSTR_PKG = "nostr_signer_package"
         private const val KEY_BUNKER = "nostr_bunker_uri"
         private const val KEY_NOSTR_WRAP = "nostr_wrap_secrets"
+        private const val KEY_ENTER_SEND = "enter_send"
+        const val ENTER_ASK = "ask"
+        const val ENTER_SEND = "send"
+        const val ENTER_NEWLINE = "newline"
+
+        fun modelsKey(provider: SettingsProvider): String = "models_${provider.id}"
 
         fun nostrSession(settings: WorkshopSettings): NostrSession? {
             if (settings.nostrPubkeyHex.length != 64) return null

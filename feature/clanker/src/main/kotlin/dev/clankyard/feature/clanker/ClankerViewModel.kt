@@ -46,12 +46,17 @@ data class ClankerUiState(
     val patch: PatchSet? = null,
     val accepted: Set<WorkspacePath> = emptySet(),
     val needsKey: Boolean = true,
+    val pendingEnter: Boolean = false,
+    val enterSend: String = WorkshopSettingsStore.ENTER_ASK,
 )
 
 sealed interface ClankerEvent {
     data class Draft(val value: String) : ClankerEvent
     data class Mode(val value: AgentMode) : ClankerEvent
     data object Send : ClankerEvent
+    data object RequestSend : ClankerEvent
+    data class ConfirmEnter(val remember: Boolean) : ClankerEvent
+    data class CancelEnter(val remember: Boolean) : ClankerEvent
     data object Cancel : ClankerEvent
     data class ToggleFile(val path: WorkspacePath) : ClankerEvent
     data object AcceptAll : ClankerEvent
@@ -81,16 +86,7 @@ class ClankerViewModel(
     private var orchestrator: AgentOrchestrator? = null
 
     fun refreshKeyFlag() {
-        scope.launch {
-            val snap = settings.read()
-            val has = settings.loadKey(snap)
-            _state.update {
-                it.copy(
-                    needsKey = !has,
-                    status = if (has) it.status else "configure a key",
-                )
-            }
-        }
+        scope.launch { refreshKeyFlagNow() }
     }
 
     fun onEvent(event: ClankerEvent) {
@@ -98,6 +94,16 @@ class ClankerViewModel(
             is ClankerEvent.Draft -> _state.update { it.copy(draft = event.value) }
             is ClankerEvent.Mode -> _state.update { it.copy(mode = event.value) }
             ClankerEvent.Send -> send()
+            ClankerEvent.RequestSend -> requestSend()
+            is ClankerEvent.ConfirmEnter -> {
+                if (event.remember) persistEnter(WorkshopSettingsStore.ENTER_SEND)
+                _state.update { it.copy(pendingEnter = false) }
+                send()
+            }
+            is ClankerEvent.CancelEnter -> {
+                if (event.remember) persistEnter(WorkshopSettingsStore.ENTER_NEWLINE)
+                _state.update { it.copy(pendingEnter = false) }
+            }
             ClankerEvent.Cancel -> cancel()
             is ClankerEvent.ToggleFile -> toggle(event.path)
             ClankerEvent.AcceptAll -> applyAccepted()
@@ -125,24 +131,60 @@ class ClankerViewModel(
         }
     }
 
+    private fun persistEnter(value: String) {
+        val snap = settings.read()
+        settings.write(snap.copy(enterSend = value))
+        _state.update { it.copy(enterSend = value) }
+    }
+
+    private fun requestSend() {
+        when (settings.read().enterSend) {
+            WorkshopSettingsStore.ENTER_SEND -> send()
+            WorkshopSettingsStore.ENTER_NEWLINE -> Unit
+            else -> _state.update { it.copy(pendingEnter = true) }
+        }
+    }
+
     private fun send() {
-        val prompt = _state.value.draft.trim()
-        if (prompt.isEmpty() || _state.value.running) return
-        val ws = workspace() ?: return
         runJob?.cancel()
-        runJob = scope.launch { runTurn(ws, prompt) }
+        runJob = scope.launch {
+            refreshKeyFlagNow()
+            val prompt = _state.value.draft.trim()
+            if (prompt.isEmpty() || _state.value.running) return@launch
+            if (_state.value.needsKey) return@launch
+            val ws = workspace() ?: return@launch
+            runTurn(ws, prompt)
+        }
+    }
+
+    private suspend fun refreshKeyFlagNow() {
+        val snap = settings.read()
+        val has = settings.loadKey(snap) || snap.provider == SettingsProvider.Ollama
+        _state.update {
+            it.copy(
+                needsKey = !has,
+                enterSend = snap.enterSend,
+                status = if (has) {
+                    if (it.status == "configure a key") "Ask the Clanker." else it.status
+                } else {
+                    "configure a key"
+                },
+            )
+        }
     }
 
     private suspend fun runTurn(ws: Workspace, prompt: String) {
         val snap = settings.read()
         val slot = settings.slotFor(snap)
         val raw = credentials.get(slot)
+            ?: if (snap.provider == SettingsProvider.Ollama) Credential.ApiKey("ollama") else null
         if (raw == null) {
             _state.update { it.copy(needsKey = true, status = "configure a key") }
             return
         }
         val credential = unwrapCredential(raw) ?: return
-        if (snap.model.isBlank()) {
+        val model = snap.model.ifBlank { snap.provider.defaultModel }
+        if (model.isBlank()) {
             _state.update { it.copy(status = "Set a model in Settings.") }
             return
         }
@@ -182,7 +224,7 @@ class ClankerViewModel(
         val request = AgentTurnRequest(
             requestId = id,
             mode = _state.value.mode,
-            model = snap.model,
+            model = model,
             credential = credential,
             context = ContextRequest(
                 mode = _state.value.mode,

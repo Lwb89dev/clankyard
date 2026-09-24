@@ -39,6 +39,7 @@ import dev.clankyard.git.JGitRepository
 import dev.clankyard.search.InProcessProjectSearch
 import dev.clankyard.search.ProjectSearch
 import dev.clankyard.workspace.FileWorkspaceRegistry
+import dev.clankyard.workspace.WorkshopEnvironment
 import dev.clankyard.workspace.WorkshopTreeOps
 import java.io.File
 import javax.inject.Singleton
@@ -65,11 +66,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideWorkspaceRegistry(@ApplicationContext context: Context): FileWorkspaceRegistry =
-        FileWorkspaceRegistry(
-            workspacesDir = File(context.filesDir, "workspaces"),
+    fun provideWorkspaceRegistry(@ApplicationContext context: Context): FileWorkspaceRegistry {
+        val env = WorkshopEnvironment.ensure(context.filesDir)
+        return FileWorkspaceRegistry(
+            workspacesDir = WorkshopEnvironment.workspacesDir(context.filesDir),
             journalRoot = File(context.filesDir, "journal"),
-        )
+        ).also { check(env.isDirectory) }
+    }
 
     @Provides
     @Singleton
@@ -118,10 +121,11 @@ object AppModule {
     @Provides
     @Singleton
     fun provideExecutionBackend(
+        @ApplicationContext context: Context,
         store: WorkshopSettingsStore,
         credentials: SecureCredentialStore,
     ): ExecutionBackend {
-        val local = LocalProcessBackend()
+        val local = LocalProcessBackend(jail = WorkshopEnvironment.ensure(context.filesDir))
         val ssh = SshExecutionBackend(
             load = {
                 val snap = store.read()

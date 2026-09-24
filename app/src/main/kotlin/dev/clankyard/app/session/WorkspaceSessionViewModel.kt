@@ -21,8 +21,15 @@ import dev.clankyard.editor.EditorSession
 import dev.clankyard.feature.explorer.ExplorerUiEffect
 import dev.clankyard.feature.explorer.ExplorerUiEvent
 import dev.clankyard.ai.patch.PatchEngineFactory
+import dev.clankyard.ai.provider.ChatEvent
+import dev.clankyard.ai.provider.ChatMessage
+import dev.clankyard.ai.provider.ChatRequest
+import dev.clankyard.ai.provider.ChatRole
+import dev.clankyard.ai.provider.ContentPart
 import dev.clankyard.ai.secret.SecretFilter
 import dev.clankyard.ai.tools.ToolRegistry
+import dev.clankyard.core.model.Credential
+import dev.clankyard.core.model.RequestId
 import dev.clankyard.app.di.LlmProviderFactory
 import dev.clankyard.core.security.SecureCredentialStore
 import dev.clankyard.feature.clanker.ClankerEvent
@@ -34,6 +41,7 @@ import dev.clankyard.feature.search.SearchViewModel
 import dev.clankyard.feature.settings.AmberBridge
 import dev.clankyard.feature.settings.LlmProbe
 import dev.clankyard.feature.settings.SettingsViewModel
+import dev.clankyard.feature.settings.WorkshopSettings
 import dev.clankyard.feature.settings.WorkshopSettingsStore
 import dev.clankyard.feature.terminal.TerminalSession
 import dev.clankyard.git.GitRepository
@@ -73,8 +81,36 @@ class WorkspaceSessionViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
     private val amber = AmberBridge(appContext)
-    private val llmProbe = LlmProbe { snap, cred ->
-        providers.create(snap.provider, snap.compatibleBaseUrl).listModels(cred).map { it.id }
+    private val llmProbe = object : LlmProbe {
+        override suspend fun modelIds(settings: WorkshopSettings, credential: Credential) =
+            providers.create(settings.provider, settings.compatibleBaseUrl)
+                .listModels(credential)
+                .map { it.id }
+
+        override suspend fun ping(
+            settings: WorkshopSettings,
+            credential: Credential,
+            model: String,
+        ) {
+            val provider = providers.create(settings.provider, settings.compatibleBaseUrl)
+            var error: String? = null
+            provider.chat(
+                ChatRequest(
+                    requestId = RequestId("probe"),
+                    model = model,
+                    messages = listOf(
+                        ChatMessage(ChatRole.User, listOf(ContentPart.Text("ping"))),
+                    ),
+                    stream = false,
+                    maxTokens = 16,
+                ),
+                credential,
+            ).collect { event ->
+                if (event is ChatEvent.Error) error = event.message
+            }
+            val failed = error ?: return
+            throw IllegalStateException(failed)
+        }
     }
     val uiState: StateFlow<WorkspaceUiState> = uiStore.state
 

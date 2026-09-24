@@ -43,6 +43,11 @@ class OpenAICompatibleProvider internal constructor(
         normalizeCompletionsRoot(baseUrl),
     )
 
+    constructor(client: OkHttpClient, baseUrl: String, allowLoopbackHttp: Boolean) : this(
+        client,
+        normalizeCompletionsRoot(baseUrl, allowLoopbackHttp),
+    )
+
     internal constructor(client: OkHttpClient, root: HttpUrl) : this(
         OpenAICompletionsAdapter(client, root),
         root,

@@ -19,5 +19,10 @@ class LlmProviderFactory @Inject constructor(
         SettingsProvider.Anthropic -> AnthropicProvider(client)
         SettingsProvider.Xai -> XAIProvider(client)
         SettingsProvider.Compatible -> OpenAICompatibleProvider(client, compatibleBaseUrl)
+        SettingsProvider.Ollama -> OpenAICompatibleProvider(
+            client,
+            compatibleBaseUrl.ifBlank { "http://127.0.0.1:11434" },
+            allowLoopbackHttp = true,
+        )
     }
 }

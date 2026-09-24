@@ -16,9 +16,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,7 +27,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -57,6 +57,7 @@ import dev.clankyard.core.ui.WorkshopSemantics
 import dev.clankyard.core.ui.isHeightCompact
 import dev.clankyard.core.ui.sizeClassFromWidthDp
 import dev.clankyard.core.ui.theme.PathTextStyle
+import dev.clankyard.core.ui.theme.WorkshopWindowSurface
 import dev.clankyard.editor.CodeEditorController
 import dev.clankyard.editor.OpenDocument
 import dev.clankyard.feature.explorer.ExplorerPane
@@ -151,6 +152,7 @@ fun AdaptiveShell(
                 CompactBottomNav(state.compactDestination, onCompactNavigate)
             }
         },
+        containerColor = Color.Transparent,
     ) { innerPadding ->
         Box(Modifier.padding(innerPadding).fillMaxSize()) {
             WorkshopBody(
@@ -277,7 +279,7 @@ private fun CompactBody(
                 modifier = if (showEditor) Modifier.fillMaxSize() else Modifier.size(0.dp),
             )
             if (!showEditor) {
-                Surface(Modifier.fillMaxSize()) {
+                WorkshopWindowSurface(Modifier.fillMaxSize()) {
                     CompactDestinationPane(
                         state,
                         onExplorer,
@@ -366,7 +368,7 @@ private fun MediumBody(
             )
         }
         if (state.chrome.clankerOverlay) {
-            Surface(
+            WorkshopWindowSurface(
                 modifier = Modifier
                     .fillMaxHeight()
                     .widthIn(min = 280.dp, max = 420.dp)
@@ -549,15 +551,20 @@ private fun WorkshopTopBar(
     onSettings: () -> Unit,
     onCloseWorkspace: () -> Unit,
 ) {
-    var menu by remember { mutableStateOf(false) }
+    var confirmClose by remember { mutableStateOf(false) }
     val mark = if (dirty) "• " else ""
-    Surface(color = MaterialTheme.colorScheme.surface) {
+        WorkshopWindowSurface {
         Row(
             modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("$mark$name", style = PathTextStyle, modifier = Modifier.weight(1f))
             TextButton(onClick = onSave) { Text("Save") }
+            if (sizeClass != SizeClass.Compact) {
+                TextButton(onClick = onToggleFiles) { Text("Files") }
+                TextButton(onClick = onToggleClanker) { Text("Clanker") }
+                TextButton(onClick = onToggleBottom) { Text("Panel") }
+            }
             IconButton(
                 onClick = onSettings,
                 modifier = Modifier.semantics { contentDescription = WorkshopSemantics.SETTINGS_BUTTON },
@@ -568,36 +575,36 @@ private fun WorkshopTopBar(
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }
-            if (sizeClass != SizeClass.Compact) {
-                TextButton(onClick = onToggleFiles) { Text("Files") }
-                TextButton(onClick = onToggleClanker) { Text("Clanker") }
-                TextButton(onClick = onToggleBottom) { Text("Panel") }
-            }
-            Box {
-                TextButton(
-                    onClick = { menu = true },
-                    modifier = Modifier.semantics {
-                        contentDescription = WorkshopSemantics.NAV_SETTINGS_OVERFLOW
-                    },
-                ) { Text("⋮") }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Settings") },
-                        onClick = {
-                            menu = false
-                            onSettings()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Close workshop") },
-                        onClick = {
-                            menu = false
-                            onCloseWorkspace()
-                        },
-                    )
-                }
+            IconButton(
+                onClick = { confirmClose = true },
+                modifier = Modifier.semantics { contentDescription = WorkshopSemantics.CLOSE_WORKSHOP },
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = null,
+                )
             }
         }
+    }
+    if (confirmClose) {
+        AlertDialog(
+            onDismissRequest = { confirmClose = false },
+            title = { Text("Close workshop") },
+            text = {
+                Text("Leave this workshop? Unsaved editor buffers stay in drafts on this device.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmClose = false
+                        onCloseWorkspace()
+                    },
+                ) { Text("Close") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClose = false }) { Text("Stay") }
+            },
+        )
     }
 }
 
@@ -606,15 +613,17 @@ private fun CompactBottomNav(
     selected: CompactDestination,
     onNavigate: (CompactDestination) -> Unit,
 ) {
-    NavigationBar {
-        compactDestinations().forEach { dest ->
-            NavigationBarItem(
-                selected = dest == selected,
-                onClick = { onNavigate(dest) },
-                icon = { Text(dest.name.take(1)) },
-                label = { Text(dest.name) },
-                modifier = Modifier.semantics { contentDescription = dest.contentDescription() },
-            )
+    WorkshopWindowSurface {
+        NavigationBar(containerColor = Color.Transparent) {
+            compactDestinations().forEach { dest ->
+                NavigationBarItem(
+                    selected = dest == selected,
+                    onClick = { onNavigate(dest) },
+                    icon = { Text(dest.name.take(1)) },
+                    label = { Text(dest.name) },
+                    modifier = Modifier.semantics { contentDescription = dest.contentDescription() },
+                )
+            }
         }
     }
 }
@@ -624,15 +633,17 @@ private fun CompactNavRail(
     selected: CompactDestination,
     onNavigate: (CompactDestination) -> Unit,
 ) {
-    NavigationRail {
-        compactDestinations().forEach { dest ->
-            NavigationRailItem(
-                selected = dest == selected,
-                onClick = { onNavigate(dest) },
-                icon = { Text(dest.name.take(1)) },
-                label = { Text(dest.name) },
-                modifier = Modifier.semantics { contentDescription = dest.contentDescription() },
-            )
+    WorkshopWindowSurface {
+        NavigationRail(containerColor = Color.Transparent) {
+            compactDestinations().forEach { dest ->
+                NavigationRailItem(
+                    selected = dest == selected,
+                    onClick = { onNavigate(dest) },
+                    icon = { Text(dest.name.take(1)) },
+                    label = { Text(dest.name) },
+                    modifier = Modifier.semantics { contentDescription = dest.contentDescription() },
+                )
+            }
         }
     }
 }

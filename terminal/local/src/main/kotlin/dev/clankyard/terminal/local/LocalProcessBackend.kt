@@ -13,12 +13,14 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 
-class LocalProcessBackend : ExecutionBackend {
+class LocalProcessBackend(
+    private val jail: File? = null,
+) : ExecutionBackend {
     override val id: String = "local"
     override val displayName: String = "Local sandbox"
     override val capabilities = ExecutionCapabilities(
         pty = false,
-        interactive = true,
+        interactive = false,
         cwdRestrictedToAppFiles = true,
         canExecUserBinaries = false,
         honestLimitationMessage = HONEST,
@@ -27,11 +29,28 @@ class LocalProcessBackend : ExecutionBackend {
     private val sessions = ConcurrentHashMap<SessionId, Process>()
 
     override fun start(session: ExecutionSessionRequest): Flow<ExecutionEvent> = flow {
-        val command = session.command.ifEmpty { listOf(defaultShell(), "-i") }
+        val cwd = resolveCwd(session.cwd)
+        if (cwd == null) {
+            emit(ExecutionEvent.Error("cwd is outside the environment sandbox"))
+            return@flow
+        }
+        val command = if (session.command.isEmpty()) {
+            listOf(defaultShell(), "-c", "pwd")
+        } else {
+            session.command
+        }
         val builder = ProcessBuilder(command)
-            .directory(session.cwd)
+            .directory(cwd)
             .redirectErrorStream(true)
-        session.env.forEach { (key, value) -> builder.environment()[key] = value }
+        val env = builder.environment()
+        if (File("/system/bin/sh").canExecute()) {
+            env["PATH"] = ANDROID_PATH
+            env.remove("ENV")
+        }
+        env["HOME"] = cwd.absolutePath
+        env["TMPDIR"] = cwd.absolutePath
+        env["PWD"] = cwd.absolutePath
+        session.env.forEach { (key, value) -> env[key] = value }
         val process = try {
             builder.start()
         } catch (e: Exception) {
@@ -39,7 +58,7 @@ class LocalProcessBackend : ExecutionBackend {
             return@flow
         }
         sessions[session.sessionId] = process
-        emit(ExecutionEvent.Output("$HONEST\ncwd: ${session.cwd.path}\n"))
+        emit(ExecutionEvent.Output("$HONEST\ncwd: ${cwd.path}\n"))
         try {
             process.inputStream.bufferedReader().use { reader ->
                 while (true) {
@@ -67,12 +86,25 @@ class LocalProcessBackend : ExecutionBackend {
     }
 
     companion object {
-        const val HONEST = "This is a sandbox shell, not a Linux distro."
+        const val HONEST =
+            "Sandbox: commands run in the app environment folder only (cwd reset each line). " +
+                "Not a Linux distro, no PTY, no chroot."
+        private const val ANDROID_PATH =
+            "/system/bin:/system/xbin:/vendor/bin:/vendor/xbin:/product/bin"
 
         fun defaultShell(): String {
             val android = File("/system/bin/sh")
             if (android.canExecute()) return android.path
             return "/bin/sh"
         }
+    }
+
+    private fun resolveCwd(requested: File): File? {
+        val cwd = runCatching { requested.canonicalFile }.getOrNull() ?: return null
+        val root = runCatching { (jail ?: cwd).canonicalFile }.getOrNull() ?: return null
+        if (cwd == root) return cwd
+        val prefix = root.path + File.separator
+        if (!cwd.path.startsWith(prefix)) return null
+        return cwd
     }
 }
