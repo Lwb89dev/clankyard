@@ -1,6 +1,7 @@
 package dev.clankyard.feature.settings
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -73,5 +74,38 @@ class WorkshopSettingsStoreTest {
         assertTrue(looksLikeNsec("nsec1abc"))
         assertTrue(looksLikeAccountPassword("user@example.com"))
         assertTrue(!looksLikeAccountPassword("sk-live-super-secret-key"))
+    }
+
+    @Test
+    fun bunkerUriRejectsMalformedPubkeyAndDoesNotPersistPairingSecret() {
+        val malformed = "a".repeat(64) + "!"
+        assertNull(BunkerUri.parse("bunker://$malformed?relay=wss://relay.example"))
+
+        val parsed = BunkerUri.parse(
+            "bunker://${"a".repeat(64)}?relay=wss%3A%2F%2Frelay.example&secret=pair-me",
+        )!!
+        assertEquals(listOf("wss://relay.example"), parsed.relays)
+        assertTrue(!parsed.withoutSecret().contains("pair-me"))
+        assertTrue(!parsed.withoutSecret().contains("secret="))
+        val migrated = WorkshopSettingsStore.sanitizeStoredBunkerUri(
+            "bunker://${"a".repeat(64)}?relay=wss://relay.example&secret=legacy-secret",
+        )
+        assertTrue(!migrated.contains("legacy-secret"))
+        assertTrue(!migrated.contains("secret="))
+    }
+
+    @Test
+    fun signerSessionRequiresExactPubkeyAndExplicitPackage() {
+        assertTrue(isValidSignerPackage("com.greenart7c3.nostrsigner"))
+        assertTrue(!isValidSignerPackage(""))
+        assertTrue(!isValidSignerPackage("com.example;malicious"))
+        assertNull(
+            WorkshopSettingsStore.nostrSession(
+                WorkshopSettings(
+                    nostrPubkeyHex = "a".repeat(64),
+                    nostrSignerPackage = "",
+                ),
+            ),
+        )
     }
 }

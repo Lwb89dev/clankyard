@@ -51,7 +51,9 @@ class OpenAICompletionsAdapter(
             .build()
         listClient.newCall(request).await().use { response ->
             if (!response.isSuccessful) throw IOException(httpErrorEvent(response, apiKey).message)
-            return parseModels(response.body?.string().orEmpty())
+            return parseModels(
+                response.body?.readUtf8Limited(ResponseLimits.JSON_BODY_BYTES).orEmpty(),
+            )
         }
     }
 
@@ -99,7 +101,7 @@ class OpenAICompletionsAdapter(
             parseCompletionsSse(source)
             return
         }
-        parseCompletionJson(source.readUtf8())
+        parseCompletionJson(source.readUtf8Limited(ResponseLimits.JSON_BODY_BYTES))
     }
 
     private suspend fun FlowCollector<ChatEvent>.parseCompletionsSse(source: BufferedSource) {

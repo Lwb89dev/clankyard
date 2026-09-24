@@ -6,6 +6,7 @@ import dev.clankyard.terminal.api.ExecutionCapabilities
 import dev.clankyard.terminal.api.ExecutionEvent
 import dev.clankyard.terminal.api.ExecutionSessionRequest
 import java.io.File
+import java.io.InputStreamReader
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -61,10 +62,12 @@ class LocalProcessBackend(
             emit(ExecutionEvent.Output("$HONEST\ncwd: ${cwd.path}\n"))
         }
         try {
-            process.inputStream.bufferedReader().use { reader ->
+            InputStreamReader(process.inputStream, Charsets.UTF_8).use { reader ->
+                val buffer = CharArray(OUTPUT_CHUNK_CHARS)
                 while (true) {
-                    val line = reader.readLine() ?: break
-                    emit(ExecutionEvent.Output(line + "\n"))
+                    val count = reader.read(buffer)
+                    if (count < 0) break
+                    if (count > 0) emit(ExecutionEvent.Output(String(buffer, 0, count)))
                 }
             }
             emit(ExecutionEvent.Exit(process.waitFor()))
@@ -92,6 +95,7 @@ class LocalProcessBackend(
                 "This is a sandbox shell, not a Linux distro; no PTY, no chroot."
         private const val ANDROID_PATH =
             "/system/bin:/system/xbin:/vendor/bin:/vendor/xbin:/product/bin"
+        private const val OUTPUT_CHUNK_CHARS = 4 * 1024
 
         fun defaultShell(): String {
             val android = File("/system/bin/sh")

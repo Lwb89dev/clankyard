@@ -1,14 +1,15 @@
 package dev.clankyard.build.runtime
 
-import java.io.File
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.IOException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Response
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -76,6 +77,7 @@ class RuntimeManagerTest {
         assertTrue(result.isSuccess)
         assertEquals("hello", File(root, "verified-pack-1/hello.txt").readText())
         assertEquals(RuntimeInstallState.Ready, manager.status(pack.id).state)
+        assertTrue(root.listFiles().orEmpty().none { it.name.startsWith(".tmp-") })
     }
 
     @Test
@@ -114,6 +116,20 @@ class RuntimeManagerTest {
             licenseName = "Apache License 2.0",
             installRelative = "../credentials",
         )
+    }
+
+    @Test
+    fun unpackRejectsArchiveThatExpandsPastBudget() {
+        val archive = zip("large.bin" to ByteArray(128 * 1024))
+        val source = tmp.newFile("expanding.zip").apply { writeBytes(archive) }
+        val destination = tmp.newFolder("expanded")
+
+        val error = runCatching {
+            ZipUnpacker.unzip(source, destination, maxExtractedBytes = 4 * 1024)
+        }.exceptionOrNull()
+
+        assertTrue(error is IOException)
+        assertTrue(error!!.message.orEmpty().contains("allowed size"))
     }
 
     private fun testPack(

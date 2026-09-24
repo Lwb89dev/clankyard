@@ -21,6 +21,7 @@ import dev.clankyard.ai.provider.http.normalizeCompletionsRoot
 import dev.clankyard.ai.provider.http.parseJsonSchema
 import dev.clankyard.ai.provider.http.parseObject
 import dev.clankyard.ai.provider.http.requireApiKey
+import dev.clankyard.ai.provider.http.readUtf8Limited
 import dev.clankyard.ai.provider.http.string
 import dev.clankyard.core.model.AuthenticationKind
 import dev.clankyard.core.model.Credential
@@ -74,7 +75,7 @@ class AnthropicProvider internal constructor(
         val request = authedGet(root.modelsUrl(), apiKey)
         listClient.newCall(request).await().use { response ->
             if (!response.isSuccessful) throw IOException(httpErrorEvent(response, apiKey).message)
-            return parseModels(response.body?.string().orEmpty())
+            return parseModels(response.body?.readUtf8Limited(2L * 1024 * 1024).orEmpty())
         }
     }
 

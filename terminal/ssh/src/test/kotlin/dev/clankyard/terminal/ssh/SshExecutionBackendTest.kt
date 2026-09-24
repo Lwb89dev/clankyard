@@ -27,6 +27,7 @@ import org.junit.Test
 class SshExecutionBackendTest {
     private lateinit var server: SshServer
     private lateinit var fingerprint: String
+    private val lastCommand = AtomicReference<String?>(null)
 
     @Before
     fun startServer() {
@@ -37,7 +38,10 @@ class SshExecutionBackendTest {
         server.passwordAuthenticator = PasswordAuthenticator { user, password, _ ->
             user == "tester" && password == "secret12"
         }
-        server.commandFactory = CommandFactory { _, command -> OneShotCommand(command) }
+        server.commandFactory = CommandFactory { _, command ->
+            lastCommand.set(command)
+            OneShotCommand(command)
+        }
         server.start()
         fingerprint = SshExecutionBackend.fingerprint(keys.loadKeys(null).first().public)
     }
@@ -82,6 +86,24 @@ class SshExecutionBackendTest {
         assertTrue(errors.any { it.message.contains("Untrusted host") })
         assertTrue(pending.get().orEmpty().isNotBlank())
         assertTrue(SshExecutionBackend.fingerprintsMatch(pending.get()!!, fingerprint))
+    }
+
+    @Test
+    fun commandArgumentsAreQuotedBeforeRemoteShell() = runBlocking {
+        val backend = backend(fingerprint = fingerprint)
+        withTimeout(20_000) {
+            backend.start(
+                ExecutionSessionRequest(
+                    sessionId = SessionId("quoted"),
+                    cwd = java.io.File("."),
+                    command = listOf("printf", "%s", "hello; touch /tmp/not-executed", "it's-safe"),
+                ),
+            ).toList()
+        }
+        assertTrue(
+            lastCommand.get() ==
+                "'printf' '%s' 'hello; touch /tmp/not-executed' 'it'\\''s-safe'",
+        )
     }
 
     @Test

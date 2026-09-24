@@ -243,8 +243,12 @@ class SettingsViewModel(
 
     private fun beginSave(secret: String) {
         val snap = _state.value.settings
-        val session = WorkshopSettingsStore.nostrSession(snap)
-        if (snap.wrapSecretsWithNostr && session != null) {
+        if (snap.wrapSecretsWithNostr) {
+            val session = WorkshopSettingsStore.nostrSession(snap)
+            if (session == null) {
+                _state.update { it.copy(status = "Link a valid Amber signer before wrapping keys.") }
+                return
+            }
             _state.update { it.copy(amberPending = AmberPending.EncryptKey) }
             return
         }
@@ -347,11 +351,13 @@ class SettingsViewModel(
         }
         update {
             it.copy(
-                bunkerUri = raw,
+                bunkerUri = parsed.withoutSecret(),
                 nostrPubkeyHex = it.nostrPubkeyHex.ifBlank { parsed.pubkeyHex },
             )
         }
-        _state.update { it.copy(status = "Bunker URI stored locally. nsec stays in the bunker/Amber.") }
+        _state.update {
+            it.copy(status = "Bunker metadata stored locally; the pairing secret was not retained.")
+        }
     }
 
     private suspend fun saveWrapped(ciphertext: String) {

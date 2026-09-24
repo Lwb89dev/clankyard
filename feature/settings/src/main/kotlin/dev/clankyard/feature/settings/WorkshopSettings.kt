@@ -110,6 +110,9 @@ class WorkshopSettingsStore(
         val provider = SettingsProvider.entries.firstOrNull { it.id == id } ?: SettingsProvider.OpenAI
         val executionId = prefs.getString(KEY_EXECUTION, ExecutionKind.Local.id)
         val execution = ExecutionKind.entries.firstOrNull { it.id == executionId } ?: ExecutionKind.Local
+        val storedBunker = prefs.getString(KEY_BUNKER, "").orEmpty()
+        val safeBunker = sanitizeStoredBunkerUri(storedBunker)
+        if (safeBunker != storedBunker) prefs.edit().putString(KEY_BUNKER, safeBunker).apply()
         return WorkshopSettings(
             provider = provider,
             theme = WorkshopTheme.fromId(prefs.getString(KEY_THEME, WorkshopTheme.Rust.id)),
@@ -125,7 +128,7 @@ class WorkshopSettingsStore(
             sshPendingFingerprint = prefs.getString(KEY_SSH_PENDING_FP, "").orEmpty(),
             nostrPubkeyHex = prefs.getString(KEY_NOSTR_PUB, "").orEmpty(),
             nostrSignerPackage = prefs.getString(KEY_NOSTR_PKG, "").orEmpty(),
-            bunkerUri = prefs.getString(KEY_BUNKER, "").orEmpty(),
+            bunkerUri = safeBunker,
             wrapSecretsWithNostr = prefs.getBoolean(KEY_NOSTR_WRAP, false),
             enterSend = prefs.getString(KEY_ENTER_SEND, ENTER_ASK) ?: ENTER_ASK,
             buildRuntimeAck = prefs.getBoolean(KEY_BUILD_RUNTIME_ACK, false),
@@ -151,7 +154,7 @@ class WorkshopSettingsStore(
             .putString(KEY_SSH_PENDING_FP, settings.sshPendingFingerprint)
             .putString(KEY_NOSTR_PUB, settings.nostrPubkeyHex)
             .putString(KEY_NOSTR_PKG, settings.nostrSignerPackage)
-            .putString(KEY_BUNKER, settings.bunkerUri)
+            .putString(KEY_BUNKER, sanitizeStoredBunkerUri(settings.bunkerUri))
             .putBoolean(KEY_NOSTR_WRAP, settings.wrapSecretsWithNostr)
             .putString(KEY_ENTER_SEND, settings.enterSend)
             .putBoolean(KEY_BUILD_RUNTIME_ACK, settings.buildRuntimeAck)
@@ -238,10 +241,16 @@ class WorkshopSettingsStore(
 
         fun modelsKey(provider: SettingsProvider): String = "models_${provider.id}"
 
+        internal fun sanitizeStoredBunkerUri(raw: String): String {
+            if (raw.isBlank()) return ""
+            return BunkerUri.parse(raw)?.withoutSecret().orEmpty()
+        }
+
         fun nostrSession(settings: WorkshopSettings): NostrSession? {
-            if (settings.nostrPubkeyHex.length != 64) return null
+            if (!isHexPubkey(settings.nostrPubkeyHex.lowercase())) return null
+            if (!isValidSignerPackage(settings.nostrSignerPackage)) return null
             return NostrSession(
-                pubkeyHex = settings.nostrPubkeyHex,
+                pubkeyHex = settings.nostrPubkeyHex.lowercase(),
                 signerPackage = settings.nostrSignerPackage,
                 bunkerUri = settings.bunkerUri,
                 wrapSecrets = settings.wrapSecretsWithNostr,

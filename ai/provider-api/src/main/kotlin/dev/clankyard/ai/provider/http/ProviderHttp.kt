@@ -21,6 +21,7 @@ import okhttp3.Authenticator
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.CookieJar
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import okhttp3.Response
 
@@ -35,9 +36,18 @@ object ProviderHttp {
     const val CONNECT_TIMEOUT_MS = 15_000L
     const val WRITE_TIMEOUT_MS = 15_000L
     const val LIST_MODELS_READ_TIMEOUT_MS = 30_000L
+    const val MAX_REQUESTS = 16
+    const val MAX_REQUESTS_PER_HOST = 4
     val STREAM_WALL_CLOCK: Duration = 10.minutes
 
-    fun client(): OkHttpClient = applyTimeouts(OkHttpClient.Builder()).build()
+    fun client(): OkHttpClient = applyTimeouts(
+        OkHttpClient.Builder().dispatcher(
+            Dispatcher().apply {
+                maxRequests = MAX_REQUESTS
+                maxRequestsPerHost = MAX_REQUESTS_PER_HOST
+            },
+        ),
+    ).build()
 
     fun listClient(base: OkHttpClient): OkHttpClient =
         applyTimeouts(base.newBuilder()).build()
@@ -62,6 +72,11 @@ object ProviderHttp {
             .connectTimeout(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .writeTimeout(WRITE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .readTimeout(LIST_MODELS_READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .authenticator(Authenticator.NONE)
+            .proxyAuthenticator(Authenticator.NONE)
+            .cookieJar(CookieJar.NO_COOKIES)
 }
 
 class InFlightCalls {

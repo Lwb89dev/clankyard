@@ -1,7 +1,6 @@
 package dev.clankyard.app
 
 import android.os.Bundle
-import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,13 +13,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import dev.clankyard.app.shell.FeaturePlaceholder
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import dev.clankyard.app.session.EditorSessionViewModel
 import dev.clankyard.app.session.WorkspaceSessionViewModel
 import dev.clankyard.app.shell.AdaptiveShell
 import dev.clankyard.app.shell.AdaptiveShellState
+import dev.clankyard.app.shell.FeaturePlaceholder
 import dev.clankyard.app.shell.WorkshopPickerScreen
 import dev.clankyard.app.shell.rememberHeightCompact
 import dev.clankyard.app.shell.rememberWorkshopSizeClass
@@ -29,6 +29,7 @@ import dev.clankyard.core.model.WorkspaceId
 import dev.clankyard.core.model.WorkspacePath
 import dev.clankyard.core.ui.restoreSizeClass
 import dev.clankyard.core.ui.theme.ClankyardTheme
+import dev.clankyard.core.ui.theme.WorkshopTheme
 import dev.clankyard.core.ui.theme.WorkshopWindowSurface
 import dev.clankyard.editor.CodeEditorController
 import dev.clankyard.editor.EditorSession
@@ -41,7 +42,6 @@ import dev.clankyard.feature.search.SearchUiState
 import dev.clankyard.feature.search.SearchViewModel
 import dev.clankyard.feature.settings.SettingsScreen
 import dev.clankyard.feature.settings.WorkshopSettingsStore
-import dev.clankyard.core.ui.theme.WorkshopTheme
 import dev.clankyard.feature.terminal.TerminalPane
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,7 +59,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             var selectedTheme by remember { mutableStateOf(workshopSettings.read().theme) }
             ClankyardTheme(theme = selectedTheme) {
-                WorkshopWindowSurface(modifier = Modifier.fillMaxSize()) {
+                WorkshopWindowSurface(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .onPreviewKeyEvent { event ->
+                            val shortcut = event.toWorkshopShortcut()
+                                ?: return@onPreviewKeyEvent false
+                            workspaceSession.onShortcut(shortcut)
+                        },
+                ) {
                     ClankyardApp(
                         workspaceSession = workspaceSession,
                         editorSession = editorSession,
@@ -68,12 +76,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-    }
-
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val shortcut = event.toWorkshopShortcut() ?: return super.dispatchKeyEvent(event)
-        if (workspaceSession.onShortcut(shortcut)) return true
-        return super.dispatchKeyEvent(event)
     }
 }
 

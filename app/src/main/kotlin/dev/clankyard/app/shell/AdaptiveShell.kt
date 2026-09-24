@@ -553,7 +553,7 @@ private fun WorkshopTopBar(
 ) {
     var confirmClose by remember { mutableStateOf(false) }
     val mark = if (dirty) "• " else ""
-        WorkshopWindowSurface {
+    WorkshopWindowSurface {
         Row(
             modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

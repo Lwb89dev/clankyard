@@ -6,6 +6,8 @@ import dev.clankyard.terminal.api.ExecutionCapabilities
 import dev.clankyard.terminal.api.ExecutionEvent
 import dev.clankyard.terminal.api.ExecutionSessionRequest
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.InputStreamReader
 import java.io.OutputStream
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
@@ -114,13 +116,18 @@ class SshExecutionBackend(
     }
 
     private fun exec(remote: ClientSession, session: ExecutionSessionRequest): Pair<String, Int> {
-        val stdout = ByteArrayOutputStream()
-        val channel = remote.createExecChannel(session.command.joinToString(" "))
+        val stdout = BoundedOutputStream(MAX_EXEC_OUTPUT_BYTES)
+        val command = session.command.joinToString(" ") { posixQuote(it) }
+        val channel = remote.createExecChannel(command)
         channel.out = stdout
         channel.err = stdout
         channel.open().verify(TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        channel.waitFor(EnumSet.of(ClientChannelEvent.CLOSED), TIMEOUT_MS)
-        return stdout.toString(Charsets.UTF_8) to (channel.exitStatus ?: 0)
+        val result = channel.waitFor(EnumSet.of(ClientChannelEvent.CLOSED), TIMEOUT_MS)
+        if (ClientChannelEvent.TIMEOUT in result) {
+            channel.close(true)
+            throw IOException("SSH command timed out")
+        }
+        return stdout.text() to (channel.exitStatus ?: SSH_UNKNOWN_EXIT)
     }
 
     private fun openShell(
@@ -149,10 +156,12 @@ class SshExecutionBackend(
     }
 
     private fun pump(stdout: PipedInputStream): Sequence<String> = sequence {
-        stdout.bufferedReader().use { reader ->
+        InputStreamReader(stdout, Charsets.UTF_8).use { reader ->
+            val buffer = CharArray(OUTPUT_CHUNK_CHARS)
             while (true) {
-                val line = reader.readLine() ?: break
-                yield(line + "\n")
+                val count = reader.read(buffer)
+                if (count < 0) break
+                if (count > 0) yield(String(buffer, 0, count))
             }
         }
     }
@@ -182,11 +191,38 @@ class SshExecutionBackend(
         }
     }
 
+    private class BoundedOutputStream(private val limit: Int) : OutputStream() {
+        private val bytes = ByteArrayOutputStream(minOf(limit, PIPE))
+        private var truncated = false
+
+        @Synchronized
+        override fun write(value: Int) {
+            if (bytes.size() < limit) bytes.write(value) else truncated = true
+        }
+
+        @Synchronized
+        override fun write(source: ByteArray, offset: Int, length: Int) {
+            val remaining = (limit - bytes.size()).coerceAtLeast(0)
+            val accepted = minOf(remaining, length)
+            if (accepted > 0) bytes.write(source, offset, accepted)
+            if (accepted < length) truncated = true
+        }
+
+        @Synchronized
+        fun text(): String = buildString {
+            append(bytes.toString(Charsets.UTF_8))
+            if (truncated) append("\n[SSH output truncated]\n")
+        }
+    }
+
     companion object {
         const val HONEST =
             "Remote SSH session. Commands run on the host you configured, not on this tablet."
         const val TIMEOUT_MS = 15_000L
         private const val PIPE = 32 * 1024
+        private const val OUTPUT_CHUNK_CHARS = 4 * 1024
+        private const val MAX_EXEC_OUTPUT_BYTES = 1024 * 1024
+        private const val SSH_UNKNOWN_EXIT = 255
 
         fun fingerprint(key: PublicKey): String =
             KeyUtils.getFingerPrint(BuiltinDigests.sha256, key)

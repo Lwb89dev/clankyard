@@ -77,10 +77,14 @@ class RuntimeManager(
             if (!hash.equals(pack.sha256, ignoreCase = true)) {
                 error("SHA-256 mismatch for $id")
             }
-            ZipUnpacker.unzip(tmpZip, staging)
+            val extractionBudget = (freeSpace(root) - FREE_SPACE_RESERVE_BYTES)
+                .coerceIn(0L, ZipUnpacker.MAX_EXTRACTED_BYTES)
+            ZipUnpacker.unzip(tmpZip, staging, maxExtractedBytes = extractionBudget)
             writeMarker(staging, pack, hash)
             publish(staging, dest)
             dest
+        }.onSuccess {
+            tmpZip.delete()
         }.onFailure {
             tmpZip.delete()
             staging.deleteRecursively()
@@ -135,6 +139,9 @@ class RuntimeManager(
             val contentLength = body.contentLength()
             val expectedSize = pack.expectedSizeBytes ?: contentLength.takeIf { it > 0 }
                 ?: throw IOException("runtime archive size is unavailable")
+            if (expectedSize !in 1..MAX_ARCHIVE_BYTES) {
+                throw IOException("runtime archive size is invalid")
+            }
             if (pack.expectedSizeBytes != null && contentLength >= 0 && contentLength != pack.expectedSizeBytes) {
                 throw IOException("unexpected runtime archive size")
             }
@@ -161,7 +168,7 @@ class RuntimeManager(
     }
 
     private fun requiredFreeSpace(downloadBytes: Long): Long =
-        downloadBytes.coerceAtLeast(0L) * 2L + FREE_SPACE_RESERVE_BYTES
+        downloadBytes.coerceIn(0L, MAX_ARCHIVE_BYTES) * 2L + FREE_SPACE_RESERVE_BYTES
 
     private fun contains(parent: File, child: File): Boolean {
         val parentPath = parent.canonicalPath

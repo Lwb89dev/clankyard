@@ -16,7 +16,9 @@ fun requireApiKey(credential: Credential): String {
 }
 
 fun httpErrorEvent(response: Response, apiKey: String = ""): ChatEvent.Error {
-    val raw = runCatching { response.body?.string().orEmpty() }.getOrDefault("")
+    val raw = runCatching {
+        response.body?.readUtf8Limited(ResponseLimits.ERROR_BODY_BYTES).orEmpty()
+    }.getOrDefault("")
     return httpErrorEvent(response.code, raw, response.message, apiKey)
 }
 
