@@ -4,7 +4,7 @@ Patches should keep the workshop small, honest, and buildable without AI.
 
 ## Ground rules
 
-- Apache-2.0 for original code. Do not vendor GPL. License CI fails if
+- MIT for original code. Do not vendor GPL. License CI fails if
   `com.termux:termux-shared` or `termux-app` appears on the app classpath.
 - Consume sora-editor as **unmodified Maven AARs**. Do not copy its sources
   into this tree. Relink steps: [docs/licenses.md](docs/licenses.md).

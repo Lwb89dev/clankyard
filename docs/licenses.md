@@ -1,7 +1,7 @@
 # Licenses and relink
 
-Clankyard is Apache-2.0. Third-party notices live in [`NOTICE`](../NOTICE).
-Full texts that are not Apache-2.0 are under [`LICENSES/`](../LICENSES/).
+Clankyard is MIT. Third-party notices live in [`NOTICE`](../NOTICE).
+Full texts that are not MIT are under [`LICENSES/`](../LICENSES/).
 
 ## sora-editor (LGPL-2.1-or-later)
 

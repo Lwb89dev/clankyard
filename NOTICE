@@ -1,7 +1,7 @@
 Clankyard
 Copyright 2026 Clankyard contributors
 
-This product is licensed under the Apache License, Version 2.0.
+This product is licensed under the MIT License.
 See the LICENSE file.
 
 
@@ -146,4 +146,4 @@ C++          MIT           jeff-hykin/better-cpp-syntax
 
 The original Apache/MIT/BSD license texts of the grammar authors apply to
 those files under editor/src/main/assets/textmate/. The Clankyard workshop
-TextMate theme (workshop-night.json) is original work, Apache-2.0.
+TextMate theme (workshop-night.json) is original work, MIT.

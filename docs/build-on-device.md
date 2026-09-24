@@ -7,7 +7,7 @@
 | **Date** | 2026-09-24 |
 | **Status** | Draft |
 | **Tip inspected** | current `main` at `/home/antona89/Documenti/vscode/clankyard` |
-| **License of this design** | Apache-2.0 (same as Clankyard source) |
+| **License of this design** | MIT (same as Clankyard source) |
 
 Evidence labels used throughout:
 
@@ -22,7 +22,7 @@ Evidence labels used throughout:
 
 Clankyard is already a native Android workshop: file-backed projects, sora-editor, local Git, a sandbox shell, optional SSH, and a Clanker that proposes patches for humans to accept. It cannot yet compile a user Android/Kotlin project on the device. This design adds a first-class **BUILD** subsystem that installs an optional on-device Android/Kotlin toolchain (JDK + SDK pieces + Gradle), detects a real Gradle Android project in the open workshop, runs `assembleDebug` locally, streams output, parses diagnostics into the existing editor, and returns an APK the human can export or install through the system installer UI.
 
-It does **not** redesign Clankyard. It does **not** replace `:terminal:*`, `:workspace`, Git, the Clanker, or the editor. It extends the existing `ExecutionBackend` process contract, ships an Apache-2.0 `LD_PRELOAD` exec interceptor so Gradle/AGP grandchildren can run filesDir ELFs, parks toolchains **outside** workshop trees, and keeps the Clanker philosophy: AI proposes, humans approve. No arbitrary shell for the LLM. No silent APK install. No auto-commit of build artifacts. No root. No Termux. No cloud compiler. No mandatory Clankyard backend. The relocatable Bionic JDK is a **separate tools-repo track** that must publish a zip+SHA-256 before the app downloads it.
+It does **not** redesign Clankyard. It does **not** replace `:terminal:*`, `:workspace`, Git, the Clanker, or the editor. It extends the existing `ExecutionBackend` process contract, ships an MIT `LD_PRELOAD` exec interceptor so Gradle/AGP grandchildren can run filesDir ELFs, parks toolchains **outside** workshop trees, and keeps the Clanker philosophy: AI proposes, humans approve. No arbitrary shell for the LLM. No silent APK install. No auto-commit of build artifacts. No root. No Termux. No cloud compiler. No mandatory Clankyard backend. The relocatable Bionic JDK is a **separate tools-repo track** that must publish a zip+SHA-256 before the app downloads it.
 
 **HOST Gradle** (desktop JDK 17 building Clankyard itself: AGP 9.4.0, Gradle 9.6.0, Kotlin 2.4.20) is a different universe from **ON-DEVICE Gradle** (a Bionic-linked JDK subprocess building the *user's* project). Mixing the two is a design bug. This document never uses Clankyard's host versions as the on-device default.
 
@@ -90,7 +90,7 @@ A tablet-first workshop that cannot produce an APK from the project it is editin
 
 3. **Do not bake JDK+SDK ELFs into the base APK.** Runtime Manager downloads versioned artifacts with SHA-256, license display, and an explicit "this bypasses F-Droid's review of these binaries" acknowledgement. The **default** compile `android.jar` is an **AOSP Apache-2.0 stub** (API 34). The official Google platform zip is an **optional extra** under the Android SDK License and is labeled F-Droid **NonFreeAdd** (and possibly **NonFreeNet**). Consent does not make that pack FLOSS. **Rationale:** APK size, F-Droid inclusion, update cadence, GPL-2.0+CE of OpenJDK, and honesty about `android.jar`.
 
-4. **W^X: never `execve` a writable `app_data_file`, including Gradle/AGP grandchildren.** Clankyard's own `ProcessBuilder` starts go through `LinkerExec` (`/system/bin/linker64 <elf> <args>`). That is **not enough**: Gradle workers, the Aapt2 daemon, `java`, `zipalign`, and `aapt2` call `execve` themselves on filesDir ELFs and will get `EACCES`. **Ship an Apache-2.0 `LD_PRELOAD` interceptor** (`libclankyard_exec.so` in **`:app` `jniLibs/arm64-v8a/`**, extracted to `nativeLibraryDir`) that rewrites `execve`/`fexecve`/`execveat` of `app_data_file` ELFs to `/system/bin/linker64` **and copies `LD_PRELOAD` into the new env** so nested JVMs stay hooked (`termux-exec` `system_linker_exec` requirement). Treat `termux-exec-package` (Apache-2.0) as a **recipe**, never as a Gradle coordinate; do not copy `termux-app` / `termux-shared`. Do **not** `System.load` the interceptor into the Clankyard app process (that would hook `LocalProcessBackend`). Scripts (`gradlew`) are invoked as `/system/bin/sh <script>` and never need `+x`. **POC-2b** is a **helper in `nativeLibraryDir`** that `execve`s a filesDir ELF while already preloaded — not `ProcessBuilder(filesDir/elf)` with `LD_PRELOAD` on the parent. Kill gate for POC-10. **Rationale:** `LD_PRELOAD` applies to the *child*; the process that calls `execve(filesDir/elf)` is the one that must already have the `.so` loaded. **CONFIRMED** mechanism, **EXPERIMENTAL** on every OEM.
+4. **W^X: never `execve` a writable `app_data_file`, including Gradle/AGP grandchildren.** Clankyard's own `ProcessBuilder` starts go through `LinkerExec` (`/system/bin/linker64 <elf> <args>`). That is **not enough**: Gradle workers, the Aapt2 daemon, `java`, `zipalign`, and `aapt2` call `execve` themselves on filesDir ELFs and will get `EACCES`. **Ship an MIT `LD_PRELOAD` interceptor** (`libclankyard_exec.so` in **`:app` `jniLibs/arm64-v8a/`**, extracted to `nativeLibraryDir`) that rewrites `execve`/`fexecve`/`execveat` of `app_data_file` ELFs to `/system/bin/linker64` **and copies `LD_PRELOAD` into the new env** so nested JVMs stay hooked (`termux-exec` `system_linker_exec` requirement). Treat `termux-exec-package` (Apache-2.0) as a **recipe**, never as a Gradle coordinate; do not copy `termux-app` / `termux-shared`. Do **not** `System.load` the interceptor into the Clankyard app process (that would hook `LocalProcessBackend`). Scripts (`gradlew`) are invoked as `/system/bin/sh <script>` and never need `+x`. **POC-2b** is a **helper in `nativeLibraryDir`** that `execve`s a filesDir ELF while already preloaded — not `ProcessBuilder(filesDir/elf)` with `LD_PRELOAD` on the parent. Kill gate for POC-10. **Rationale:** `LD_PRELOAD` applies to the *child*; the process that calls `execve(filesDir/elf)` is the one that must already have the `.so` loaded. **CONFIRMED** mechanism, **EXPERIMENTAL** on every OEM.
 
 5. **Phase 1 is real Gradle, not CodeAssist-style toy compilation.** POC-9 (javac+aapt2+D8 without Gradle) exists only as a diagnostic ladder step and a fallback if POC-10 is BLOCKED. **Rationale:** owner constraint; user projects are Gradle projects.
 
@@ -106,7 +106,7 @@ A tablet-first workshop that cannot produce an APK from the project it is editin
 
 11. **Reuse OkHttp, `RedactingLogger`, `SecretFilter`, `WorkspacePath`, Hilt, UDF, and the bottom `Problems`/`Output` tabs.** Compact phones use a **full-screen Dialog/scrim** for the build log (no sixth `CompactDestination`). Tablets use `BottomTab.Output`. **Rationale:** `AdaptiveShellInstrumentedTest` asserts exactly five `NAV_*` destinations; compact has no Output tab.
 
-12. **No GPL in the APK or in Gradle coordinates.** AndroidIDE, androidide-tools, Termux-app, termux-shared stay reference-only. OpenJDK is a **post-install** GPL-2.0-with-classpath-exception runtime, not compiled into Clankyard. **Rationale:** Apache-2.0 + existing `licenseCheck`.
+12. **No GPL in the APK or in Gradle coordinates.** AndroidIDE, androidide-tools, Termux-app, termux-shared stay reference-only. OpenJDK is a **post-install** GPL-2.0-with-classpath-exception runtime, not compiled into Clankyard. **Rationale:** MIT + existing `licenseCheck`.
 
 13. **The relocatable Bionic JDK (and Bionic aapt2) are a separate tools-repo track, not a Clankyard app PR.** A reproducible Dockerfile/script must publish a `.zip` + SHA-256 *before* Clankyard PR-3 (JDK) or **PR-5a** (aapt2) may merge. If that track slips past a dated checkpoint, the documented shrink is POC-9 + honest "Gradle not supported on this device" — not a silent CodeAssist pivot. **Rationale:** every drop-in JDK is BLOCKED (glibc or Termux `$PREFIX`); building OpenJDK 17u for API 29 sysroot is months of NDK work.
 
@@ -337,7 +337,7 @@ LD_PRELOAD=<applicationInfo.nativeLibraryDir>/libclankyard_exec.so
 
 The absolute path is injected from `:app` (`Context.applicationInfo.nativeLibraryDir`). `:build:runtime` is kotlin.jvm and **cannot** ship `jniLibs`.
 
-The interceptor (Apache-2.0, written for Clankyard; `termux-exec-package` is the recipe) rewrites `execve`/`fexecve`/`execveat` of `app_data_file` ELFs to `/system/bin/linker64 <elf> <args>` **and must put `LD_PRELOAD` into the rewritten env**. Otherwise Gradle main (hooked) can spawn a worker `java` that is unhooked, and that worker’s `execve(aapt2)` dies. Clankyard's top-level start still uses `LinkerExec` so the *first* `java` is also legal, with `LD_PRELOAD` already in that child's env.
+The interceptor (MIT, written for Clankyard; `termux-exec-package` is the recipe) rewrites `execve`/`fexecve`/`execveat` of `app_data_file` ELFs to `/system/bin/linker64 <elf> <args>` **and must put `LD_PRELOAD` into the rewritten env**. Otherwise Gradle main (hooked) can spawn a worker `java` that is unhooked, and that worker’s `execve(aapt2)` dies. Clankyard's top-level start still uses `LinkerExec` so the *first* `java` is also legal, with `LD_PRELOAD` already in that child's env.
 
 **POC-2b is not** `ProcessBuilder(filesDir/elf)` plus `environment()["LD_PRELOAD"]`. That sets preload on a child that never starts: the *parent* `execve`s the filesDir ELF and gets `EACCES` before the interceptor loads. Shape:
 
@@ -781,7 +781,7 @@ Rules:
 
 Clankyard compliance:
 
-- Base APK: Apache-2.0 app, no JDK/SDK/Gradle ELFs, no Termux.
+- Base APK: MIT app, no JDK/SDK/Gradle ELFs, no Termux.
 - Runtime install is **off** until the user opens Settings → Runtimes, reads licenses, checks "I understand these binaries are not reviewed by F-Droid", taps Install.
 - Declining is one tap (Close). No dark pattern.
 - Prefer Apache-2.0 / GPL-2.0+CE / BSD packs. The **default** compile jar is AOSP Apache-2.0 stub, not Google's SDK.
@@ -1234,7 +1234,7 @@ Editor already has Python TextMate grammar. Running scripts is a later Runtime p
 
 | Component | SPDX | In base APK? | Notes |
 | --- | --- | --- | --- |
-| Clankyard source | Apache-2.0 | yes | |
+| Clankyard source | MIT | yes | |
 | sora-editor AAR | LGPL-2.1-or-later | yes, unmodified Maven | existing NOTICE + relink doc |
 | JGit | BSD-3-Clause (EDL 1.0) | yes | existing |
 | MINA SSHD / OkHttp / AndroidX / Hilt / Kotlin / Compose | Apache-2.0 / MIT | yes | existing |
@@ -1420,7 +1420,7 @@ Migration: `WorkshopEnvironment.ensure` creates new subdirs. Old installs keep w
 - **Cons:** duplicate cancel/jail/env; prompt says not to.
 - **Decision:** generalize the request; new backend impl.
 
-### F. Apache-2.0 `LD_PRELOAD` exec interceptor (adopt)
+### F. MIT `LD_PRELOAD` exec interceptor (adopt)
 
 - **Pros:** this is the mechanism AndroidIDE/Termux actually used so Gradle/AGP grandchild `execve` of filesDir ELFs works; `termux-exec-package` is Apache-2.0 (recipe, not a Gradle coordinate); inherited by the whole JVM tree; does not require Termux-app.
 - **Cons:** native code in the APK; OEM sepolicy risk; must be tested as POC-2b.
@@ -1555,7 +1555,7 @@ Each task is independently reviewable. Do not start P5 UI polish before the cite
 - **Test:** ARM64 instrumented; `@Ignore` / assume ABI on x86_64 emulators. JVM unit tests for argv construction on CI.
 - **Acceptance:** output contains `clankyard-exec-ok` on ARM64
 - **Security:** only our signed APK ELF
-- **License:** our C snippet Apache-2.0
+- **License:** our C snippet MIT
 - **Rollback:** remove jniLibs + test
 
 ### BUILD-005 — POC-2 linker64 + POC-2b helper + interceptor
@@ -1568,7 +1568,7 @@ Each task is independently reviewable. Do not start P5 UI polish before the cite
 - **Test:** ARM64 instrumented API 29+36; `@Ignore` elsewhere; document device protocol. Do not copy `termux-app` / `termux-shared`.
 - **Acceptance:** POC-2 and helper-shaped POC-2b green on ARM64 **or** documented BLOCKED (blocks POC-10)
 - **Security:** jail paths; interceptor only on BUILD env, not the human terminal
-- **License:** Apache-2.0 interceptor + helper; no GPL
+- **License:** MIT interceptor + helper; no GPL
 - **Rollback:** feature stays dormant
 
 ### BUILD-006 — `:build:api` module
@@ -1581,7 +1581,7 @@ Each task is independently reviewable. Do not start P5 UI polish before the cite
 - **Test:** enum / `ProposedBuild` tests
 - **Acceptance:** `:build:api:test` green; module graph has no `:workspace`; `:app` does not depend yet
 - **Security:** none
-- **License:** Apache-2.0
+- **License:** MIT
 - **Rollback:** unused module
 
 ### BUILD-007 — `:build:runtime` RuntimeManager download/verify/extract
