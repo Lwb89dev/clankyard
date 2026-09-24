@@ -32,6 +32,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
@@ -157,31 +159,33 @@ fun AdaptiveShell(
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) { innerPadding ->
         Box(Modifier.padding(innerPadding).fillMaxSize()) {
-            WorkshopBody(
-                state = state,
-                controller = controller,
-                useRail = useRail,
-                onCompactNavigate = onCompactNavigate,
-                onExplorer = onExplorer,
-                onSelectTab = onSelectTab,
-                onCloseTab = onCloseTab,
-                onEdit = onEdit,
-                onCursor = onCursor,
-                onWeights = onWeights,
-                onBottomTab = onBottomTab,
-                clankerContent = clankerContent,
-                terminalContent = terminalContent,
-                gitContent = gitContent,
-            )
-            WorkshopOverlays(
-                state = state,
-                onSearch = onSearch,
-                onOpenPath = onOpenPath,
-                onDismissPalette = onDismissPalette,
-                onFileQuery = onFileQuery,
-                onCommand = onCommand,
-                settingsContent = settingsContent,
-            )
+            CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+                WorkshopBody(
+                    state = state,
+                    controller = controller,
+                    useRail = useRail,
+                    onCompactNavigate = onCompactNavigate,
+                    onExplorer = onExplorer,
+                    onSelectTab = onSelectTab,
+                    onCloseTab = onCloseTab,
+                    onEdit = onEdit,
+                    onCursor = onCursor,
+                    onWeights = onWeights,
+                    onBottomTab = onBottomTab,
+                    clankerContent = clankerContent,
+                    terminalContent = terminalContent,
+                    gitContent = gitContent,
+                )
+                WorkshopOverlays(
+                    state = state,
+                    onSearch = onSearch,
+                    onOpenPath = onOpenPath,
+                    onDismissPalette = onDismissPalette,
+                    onFileQuery = onFileQuery,
+                    onCommand = onCommand,
+                    settingsContent = settingsContent,
+                )
+            }
         }
     }
 }

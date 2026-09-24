@@ -4,7 +4,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -126,16 +125,19 @@ fun WorkshopWindowSurface(
     content: @Composable BoxScope.() -> Unit,
 ) {
     Surface(
-        modifier = modifier,
+        // The surface must respect the slot that owns it. A fillMaxSize here
+        // makes a top/bottom Scaffold slot consume the whole viewport and
+        // hides the workspace panes underneath it.
+        modifier = modifier.background(
+            brush = WorkshopWindowBrush(),
+            shape = shape,
+        ),
         shape = shape,
         color = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = tonalElevation,
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(WorkshopWindowBrush()),
             content = content,
         )
     }
