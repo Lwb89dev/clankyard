@@ -88,8 +88,8 @@ class LocalProcessBackend(
 
     companion object {
         const val HONEST =
-            "Sandbox: commands run in the app environment folder only (cwd reset each line). " +
-                "Not a Linux distro, no PTY, no chroot."
+            "Local Sandbox shell: commands run in the app environment folder only (cwd reset each line). " +
+                "This is a sandbox shell, not a Linux distro; no PTY, no chroot."
         private const val ANDROID_PATH =
             "/system/bin:/system/xbin:/vendor/bin:/vendor/xbin:/product/bin"
 

@@ -21,6 +21,7 @@ Single `MainActivity`, Jetpack Compose, Navigation 2, Hilt+KSP, UDF.
 | `:terminal:ssh` | Apache MINA SSHD client, password + host-key TOFU |
 | `:build:api` | File-free `BuildService` types (on-device BUILD) |
 | `:build:runtime` | Runtime packs, `LinkerExec` (no jniLibs) |
+| `:build:engine` | Project detection, build process backend, diagnostics (dormant until a verified toolchain exists) |
 | `:ai:provider-api` | `LlmProvider`, Completions/Messages HTTP |
 | `:ai:providers:*` | OpenAI, Anthropic, xAI, compatible, Fake |
 | `:ai:secret` | `SecretFilter` |
@@ -72,5 +73,4 @@ Expanded: files | editor | Clanker, plus bottom tabs Terminal / Problems /
 Git / Output (Problems and Output are BUILD surfaces). Compact: five
 destinations (Editor, Files, Clanker, Terminal, Git); Build log is a Dialog,
 not a sixth destination. Editor session is Activity-retained.
-
 

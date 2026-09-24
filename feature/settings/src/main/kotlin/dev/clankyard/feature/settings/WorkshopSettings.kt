@@ -89,6 +89,11 @@ data class WorkshopSettings(
     val bunkerUri: String = "",
     val wrapSecretsWithNostr: Boolean = false,
     val enterSend: String = "ask",
+    /** Explicit opt-in acknowledgement for optional executable build runtimes. */
+    val buildRuntimeAck: Boolean = false,
+    /** Workspaces whose build scripts the user has explicitly trusted. */
+    val buildTrustedIds: Set<String> = emptySet(),
+    val gradleXmxMb: Int = 512,
 )
 
 class WorkshopSettingsStore(
@@ -123,6 +128,10 @@ class WorkshopSettingsStore(
             bunkerUri = prefs.getString(KEY_BUNKER, "").orEmpty(),
             wrapSecretsWithNostr = prefs.getBoolean(KEY_NOSTR_WRAP, false),
             enterSend = prefs.getString(KEY_ENTER_SEND, ENTER_ASK) ?: ENTER_ASK,
+            buildRuntimeAck = prefs.getBoolean(KEY_BUILD_RUNTIME_ACK, false),
+            buildTrustedIds = prefs.getStringSet(KEY_BUILD_TRUSTED_IDS, emptySet()).orEmpty().toSet(),
+            gradleXmxMb = prefs.getInt(KEY_GRADLE_XMX_MB, DEFAULT_GRADLE_XMX_MB)
+                .coerceIn(MIN_GRADLE_XMX_MB, MAX_GRADLE_XMX_MB),
         )
     }
 
@@ -145,6 +154,12 @@ class WorkshopSettingsStore(
             .putString(KEY_BUNKER, settings.bunkerUri)
             .putBoolean(KEY_NOSTR_WRAP, settings.wrapSecretsWithNostr)
             .putString(KEY_ENTER_SEND, settings.enterSend)
+            .putBoolean(KEY_BUILD_RUNTIME_ACK, settings.buildRuntimeAck)
+            .putStringSet(KEY_BUILD_TRUSTED_IDS, settings.buildTrustedIds.toSet())
+            .putInt(
+                KEY_GRADLE_XMX_MB,
+                settings.gradleXmxMb.coerceIn(MIN_GRADLE_XMX_MB, MAX_GRADLE_XMX_MB),
+            )
             .apply()
     }
 
@@ -211,6 +226,12 @@ class WorkshopSettingsStore(
         private const val KEY_BUNKER = "nostr_bunker_uri"
         private const val KEY_NOSTR_WRAP = "nostr_wrap_secrets"
         private const val KEY_ENTER_SEND = "enter_send"
+        private const val KEY_BUILD_RUNTIME_ACK = "build_runtime_ack"
+        private const val KEY_BUILD_TRUSTED_IDS = "build_trusted_ids"
+        private const val KEY_GRADLE_XMX_MB = "gradle_xmx_mb"
+        private const val MIN_GRADLE_XMX_MB = 128
+        private const val MAX_GRADLE_XMX_MB = 2048
+        private const val DEFAULT_GRADLE_XMX_MB = 512
         const val ENTER_ASK = "ask"
         const val ENTER_SEND = "send"
         const val ENTER_NEWLINE = "newline"

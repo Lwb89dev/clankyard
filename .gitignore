@@ -3,6 +3,16 @@
 build/
 **/build/
 
+# The on-device BUILD sources live under a directory whose name contains
+# "build". Keep its source tree versioned while retaining the generated
+# Gradle outputs below it as ignored files.
+!ondevice-build/
+!ondevice-build/*/
+!ondevice-build/*/src/
+!ondevice-build/*/src/**
+/ondevice-build/*/build/
+/ondevice-build/*/bin/
+
 # Kotlin
 .kotlin/
 

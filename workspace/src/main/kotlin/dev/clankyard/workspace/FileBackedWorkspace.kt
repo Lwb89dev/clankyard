@@ -4,7 +4,8 @@ import dev.clankyard.core.model.WorkspacePath
 import java.io.File
 
 /**
- * Internal. Only `:git`, `:terminal:local`, and workspace I/O. Never injected into `:ai:tools`.
+ * Internal. Only `:git`, `:terminal:local`, `:build:engine`, and workspace I/O.
+ * Never injected into `:ai:tools`.
  */
 interface FileBackedWorkspace : Workspace {
     val root: File

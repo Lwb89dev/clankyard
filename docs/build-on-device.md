@@ -216,7 +216,7 @@ sequenceDiagram
 
 ## 1. Exact current module graph
 
-**CONFIRMED** 32 `include(...)` lines in `settings.gradle.kts`. There is **no** `:build:*` module today. `docs/architecture.md` is **stale** on workshop paths, the terminal banner, and the bottom strip — see BUILD-001. The lists below are from Gradle files, not that doc.
+**CONFIRMED** 35 `include(...)` lines in `settings.gradle.kts`. The dormant `:build:api`, `:build:runtime`, and `:build:engine` modules now exist; they are not yet wired into `:app`. `docs/architecture.md` is **stale** on workshop paths, the terminal banner, and the bottom strip — see BUILD-001. The lists below are from Gradle files, not that doc.
 
 **Repo includes** (`settings.gradle.kts`):
 
@@ -225,6 +225,7 @@ sequenceDiagram
 :core:model :core:common :core:ui :core:security
 :workspace :editor :search :diff :git
 :terminal:api :terminal:local :terminal:ssh
+:build:api :build:runtime :build:engine
 :ai:provider-api
 :ai:providers:fake :ai:providers:openai :ai:providers:anthropic
 :ai:providers:xai :ai:providers:openai-compatible
