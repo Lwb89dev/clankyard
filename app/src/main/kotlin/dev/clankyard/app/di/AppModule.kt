@@ -13,6 +13,10 @@ import dev.clankyard.core.ui.DataStoreWorkspaceUiStore
 import dev.clankyard.core.ui.WorkspaceUiStore
 import dev.clankyard.ai.patch.CachingPatchEngineFactory
 import dev.clankyard.ai.patch.PatchEngineFactory
+import dev.clankyard.ai.tools.DefaultToolRegistry
+import dev.clankyard.ai.tools.ToolRegistry
+import dev.clankyard.search.TextSearch
+import dev.clankyard.search.WorkspaceTextSearch
 import dev.clankyard.diff.DiffEngine
 import dev.clankyard.diff.MyersDiffEngine
 import dev.clankyard.feature.workspacepicker.AndroidWorkspaceIo
@@ -75,4 +79,12 @@ object AppModule {
     @Singleton
     fun providePatchEngineFactory(diffEngine: DiffEngine): PatchEngineFactory =
         CachingPatchEngineFactory(diffEngine)
+
+    @Provides
+    @Singleton
+    fun provideTextSearch(): TextSearch = WorkspaceTextSearch()
+
+    @Provides
+    @Singleton
+    fun provideToolRegistry(search: TextSearch): ToolRegistry = DefaultToolRegistry.mvp(search)
 }

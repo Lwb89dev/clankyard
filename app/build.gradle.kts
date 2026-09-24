@@ -48,6 +48,8 @@ dependencies {
     implementation(project(":diff"))
     implementation(project(":git"))
     implementation(project(":ai:patch"))
+    implementation(project(":search"))
+    implementation(project(":ai:tools"))
     implementation(project(":feature:workspace-picker"))
     implementation(project(":feature:git"))
     implementation(project(":feature:diff"))
