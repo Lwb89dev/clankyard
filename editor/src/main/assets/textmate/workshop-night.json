@@ -1,0 +1,53 @@
+{
+  "name": "Workshop Night",
+  "type": "dark",
+  "colors": {
+    "editor.background": "#1A1410",
+    "editor.foreground": "#E6D3B3",
+    "editor.lineHighlightBackground": "#241C16",
+    "editor.selectionBackground": "#6B534466",
+    "editorCursor.foreground": "#E07A3D",
+    "editorLineNumber.foreground": "#6B5344",
+    "editorLineNumber.activeForeground": "#E6D3B3"
+  },
+  "tokenColors": [
+    {
+      "settings": {
+        "background": "#1A1410",
+        "foreground": "#E6D3B3"
+      }
+    },
+    {
+      "scope": ["comment", "punctuation.definition.comment"],
+      "settings": { "foreground": "#8A7A68", "fontStyle": "italic" }
+    },
+    {
+      "scope": ["keyword", "storage", "storage.type", "storage.modifier"],
+      "settings": { "foreground": "#E07A3D" }
+    },
+    {
+      "scope": ["string", "punctuation.definition.string"],
+      "settings": { "foreground": "#C4A35A" }
+    },
+    {
+      "scope": ["constant.numeric", "constant.language", "constant.character"],
+      "settings": { "foreground": "#D4A574" }
+    },
+    {
+      "scope": ["entity.name.function", "support.function"],
+      "settings": { "foreground": "#E6D3B3" }
+    },
+    {
+      "scope": ["entity.name.class", "entity.name.type", "support.class"],
+      "settings": { "foreground": "#C45C26" }
+    },
+    {
+      "scope": ["variable", "variable.parameter"],
+      "settings": { "foreground": "#E6D3B3" }
+    },
+    {
+      "scope": "invalid",
+      "settings": { "foreground": "#E07A3D" }
+    }
+  ]
+}

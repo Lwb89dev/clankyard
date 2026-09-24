@@ -33,4 +33,6 @@ enum class SizeClass { Compact, Medium, Expanded }
 interface WorkspaceUiStore {
     val state: kotlinx.coroutines.flow.StateFlow<WorkspaceUiState>
     suspend fun update(transform: (WorkspaceUiState) -> WorkspaceUiState)
+    /** Waits for the on-disk snapshot. Clanker transcript is not stored. */
+    suspend fun snapshot(): WorkspaceUiState
 }

@@ -23,6 +23,8 @@ import dev.clankyard.feature.workspacepicker.AndroidWorkspaceIo
 import dev.clankyard.feature.workspacepicker.DefaultAndroidWorkspaceIo
 import dev.clankyard.git.GitRepository
 import dev.clankyard.git.JGitRepository
+import dev.clankyard.search.InProcessProjectSearch
+import dev.clankyard.search.ProjectSearch
 import dev.clankyard.workspace.FileWorkspaceRegistry
 import dev.clankyard.workspace.WorkshopTreeOps
 import java.io.File
@@ -87,4 +89,8 @@ object AppModule {
     @Provides
     @Singleton
     fun provideToolRegistry(search: TextSearch): ToolRegistry = DefaultToolRegistry.mvp(search)
+
+    @Provides
+    @Singleton
+    fun provideProjectSearch(): ProjectSearch = InProcessProjectSearch()
 }
