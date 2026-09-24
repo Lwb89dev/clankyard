@@ -116,6 +116,22 @@ class ExplorerViewModelTest {
     }
 
     @Test
+    fun longPressContextMenuTargetsThePressedRow() = runBlocking {
+        val ws = openWs()
+        seed(ws)
+        val vm = ExplorerViewModel(ws, this)
+        vm.handle(ExplorerUiEvent.Refresh)
+        val path = WorkspacePath.parse("a.txt")
+
+        vm.handle(ExplorerUiEvent.ShowContextMenu(path))
+        assertEquals(path, vm.state.value.contextMenuPath)
+        assertEquals(path, vm.state.value.selected)
+
+        vm.handle(ExplorerUiEvent.DismissContextMenu)
+        assertNull(vm.state.value.contextMenuPath)
+    }
+
+    @Test
     fun confirmDeleteRemovesFile() = runBlocking {
         val ws = openWs()
         seed(ws)

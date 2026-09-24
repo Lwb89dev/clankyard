@@ -1,6 +1,6 @@
 package dev.clankyard.feature.explorer
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,7 +48,12 @@ fun ExplorerPane(
         state.message?.let { Text(it, modifier = Modifier.padding(8.dp)) }
         LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
             items(state.rows, key = { it.path.relative }) { row ->
-                ExplorerRowItem(row, selected = row.path == state.selected, onEvent = onEvent)
+                ExplorerRowItem(
+                    row = row,
+                    selected = row.path == state.selected,
+                    contextMenuOpen = row.path == state.contextMenuPath,
+                    onEvent = onEvent,
+                )
             }
         }
     }
@@ -81,6 +88,7 @@ private fun ExplorerToolbar(onEvent: (ExplorerUiEvent) -> Unit) {
 private fun ExplorerRowItem(
     row: ExplorerRow,
     selected: Boolean,
+    contextMenuOpen: Boolean,
     onEvent: (ExplorerUiEvent) -> Unit,
 ) {
     val prefix = when {
@@ -89,23 +97,41 @@ private fun ExplorerRowItem(
         else -> "▸ "
     }
     val label = prefix + row.name
-    Text(
-        text = label,
-        style = PathTextStyle,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                if (row.isDirectory) onEvent(ExplorerUiEvent.Toggle(row.path))
-                else onEvent(ExplorerUiEvent.Open(row.path))
-            }
-            .padding(start = (8 + row.depth * 12).dp, top = 4.dp, bottom = 4.dp, end = 8.dp)
-            .semantics { contentDescription = row.path.relative },
-        color = if (selected) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        },
-    )
+    Box(Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            style = PathTextStyle,
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = {
+                        if (row.isDirectory) onEvent(ExplorerUiEvent.Toggle(row.path))
+                        else onEvent(ExplorerUiEvent.Open(row.path))
+                    },
+                    onLongClick = { onEvent(ExplorerUiEvent.ShowContextMenu(row.path)) },
+                )
+                .padding(start = (8 + row.depth * 12).dp, top = 8.dp, bottom = 8.dp, end = 8.dp)
+                .semantics { contentDescription = row.path.relative },
+            color = if (selected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+        )
+        DropdownMenu(
+            expanded = contextMenuOpen,
+            onDismissRequest = { onEvent(ExplorerUiEvent.DismissContextMenu) },
+        ) {
+            DropdownMenuItem(
+                text = { Text("Rename") },
+                onClick = { onEvent(ExplorerUiEvent.RequestRename(row.path)) },
+            )
+            DropdownMenuItem(
+                text = { Text("Delete") },
+                onClick = { onEvent(ExplorerUiEvent.RequestDelete(row.path)) },
+            )
+        }
+    }
 }
 
 @Composable

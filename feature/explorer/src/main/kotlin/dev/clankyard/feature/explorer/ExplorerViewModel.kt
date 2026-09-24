@@ -34,6 +34,8 @@ class ExplorerViewModel(
         when (event) {
             is ExplorerUiEvent.Toggle -> toggle(event.path)
             is ExplorerUiEvent.Open -> open(event.path)
+            is ExplorerUiEvent.ShowContextMenu -> showContextMenu(event.path)
+            ExplorerUiEvent.DismissContextMenu -> _state.update { it.copy(contextMenuPath = null) }
             is ExplorerUiEvent.RequestNewFile -> prompt(NamePromptKind.NewFile, event.parent)
             is ExplorerUiEvent.RequestNewFolder -> prompt(NamePromptKind.NewFolder, event.parent)
             is ExplorerUiEvent.RequestRename -> requestRename(event.path)
@@ -51,13 +53,13 @@ class ExplorerViewModel(
         val row = row(path) ?: return
         if (!row.isDirectory) return
         if (path in expanded) expanded -= path else expanded += path
-        _state.update { it.copy(selected = path, message = null) }
+        _state.update { it.copy(selected = path, contextMenuPath = null, message = null) }
         rebuild()
     }
 
     private suspend fun open(path: WorkspacePath) {
         val meta = workspace.metadata(path) ?: return
-        _state.update { it.copy(selected = path, message = null) }
+        _state.update { it.copy(selected = path, contextMenuPath = null, message = null) }
         if (meta.isDirectory) {
             toggle(path)
             return
@@ -65,10 +67,16 @@ class ExplorerViewModel(
         _effects.emit(ExplorerUiEffect.OpenFile(path))
     }
 
+    private fun showContextMenu(path: WorkspacePath) {
+        if (row(path) == null) return
+        _state.update { it.copy(selected = path, contextMenuPath = path, message = null) }
+    }
+
     private fun prompt(kind: NamePromptKind, parent: WorkspacePath?) {
         val dir = directoryFor(parent)
         _state.update {
             it.copy(
+                contextMenuPath = null,
                 namePrompt = NamePrompt(kind = kind, parent = dir),
                 message = null,
             )
@@ -80,6 +88,7 @@ class ExplorerViewModel(
         _state.update {
             it.copy(
                 selected = row.path,
+                contextMenuPath = null,
                 namePrompt = NamePrompt(
                     kind = NamePromptKind.Rename,
                     parent = row.path.parent(),
@@ -93,7 +102,14 @@ class ExplorerViewModel(
 
     private fun requestDelete(path: WorkspacePath?) {
         val row = resolveRow(path) ?: return
-        _state.update { it.copy(selected = row.path, pendingDelete = row, message = null) }
+        _state.update {
+            it.copy(
+                selected = row.path,
+                contextMenuPath = null,
+                pendingDelete = row,
+                message = null,
+            )
+        }
     }
 
     private fun requestSaveAs(path: WorkspacePath?) {
@@ -105,6 +121,7 @@ class ExplorerViewModel(
         _state.update {
             it.copy(
                 selected = row.path,
+                contextMenuPath = null,
                 namePrompt = NamePrompt(
                     kind = NamePromptKind.SaveAs,
                     parent = row.path.parent(),

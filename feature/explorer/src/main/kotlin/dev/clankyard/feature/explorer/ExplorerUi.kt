@@ -24,6 +24,7 @@ data class NamePrompt(
 data class ExplorerUiState(
     val rows: List<ExplorerRow> = emptyList(),
     val selected: WorkspacePath? = null,
+    val contextMenuPath: WorkspacePath? = null,
     val pendingDelete: ExplorerRow? = null,
     val namePrompt: NamePrompt? = null,
     val message: String? = null,
@@ -32,6 +33,8 @@ data class ExplorerUiState(
 sealed interface ExplorerUiEvent {
     data class Toggle(val path: WorkspacePath) : ExplorerUiEvent
     data class Open(val path: WorkspacePath) : ExplorerUiEvent
+    data class ShowContextMenu(val path: WorkspacePath) : ExplorerUiEvent
+    data object DismissContextMenu : ExplorerUiEvent
     data class RequestNewFile(val parent: WorkspacePath? = null) : ExplorerUiEvent
     data class RequestNewFolder(val parent: WorkspacePath? = null) : ExplorerUiEvent
     data class RequestRename(val path: WorkspacePath? = null) : ExplorerUiEvent

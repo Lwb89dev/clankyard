@@ -26,24 +26,52 @@
       "settings": { "foreground": "#E07A3D" }
     },
     {
+      "scope": ["keyword.control", "keyword.operator", "storage.type.function", "storage.type.class"],
+      "settings": { "foreground": "#FF8A65" }
+    },
+    {
       "scope": ["string", "punctuation.definition.string"],
       "settings": { "foreground": "#C4A35A" }
     },
     {
-      "scope": ["constant.numeric", "constant.language", "constant.character"],
+      "scope": ["constant", "constant.numeric", "constant.language", "constant.character"],
       "settings": { "foreground": "#D4A574" }
     },
     {
-      "scope": ["entity.name.function", "support.function"],
+      "scope": ["entity.name.function", "support.function", "variable.function"],
+      "settings": { "foreground": "#7DD3C7" }
+    },
+    {
+      "scope": ["entity.name.class", "entity.name.type", "support.class", "support.type"],
+      "settings": { "foreground": "#82B1FF" }
+    },
+    {
+      "scope": ["variable.parameter", "variable.parameter.function"],
+      "settings": { "foreground": "#F6C177" }
+    },
+    {
+      "scope": ["variable", "variable.other", "variable.other.readwrite"],
       "settings": { "foreground": "#E6D3B3" }
     },
     {
-      "scope": ["entity.name.class", "entity.name.type", "support.class"],
-      "settings": { "foreground": "#C45C26" }
+      "scope": ["variable.other.property", "meta.property-name"],
+      "settings": { "foreground": "#A7D8F0" }
     },
     {
-      "scope": ["variable", "variable.parameter"],
-      "settings": { "foreground": "#E6D3B3" }
+      "scope": ["constant.language", "constant.other", "entity.name.constant"],
+      "settings": { "foreground": "#C4B5FD" }
+    },
+    {
+      "scope": ["keyword.operator", "punctuation.accessor"],
+      "settings": { "foreground": "#F28B82" }
+    },
+    {
+      "scope": ["punctuation", "punctuation.separator", "punctuation.terminator"],
+      "settings": { "foreground": "#B7A694" }
+    },
+    {
+      "scope": ["entity.name.tag", "entity.other.attribute-name", "entity.name.namespace"],
+      "settings": { "foreground": "#FF9F68" }
     },
     {
       "scope": "invalid",

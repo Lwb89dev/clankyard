@@ -463,7 +463,18 @@ class WorkspaceSessionViewModel @Inject constructor(
         val session = editorVm?.session?.value
         when (effect) {
             is ExplorerUiEffect.OpenFile -> openInEditor(effect.path)
-            is ExplorerUiEffect.Deleted -> session?.notifyDeleted(effect.path)
+            is ExplorerUiEffect.Deleted -> {
+                session?.notifyDeleted(effect.path)
+                persist { state ->
+                    val tabs = state.tabs.filterNot { it.path == effect.path }
+                    val active = if (state.activePath == effect.path) {
+                        tabs.lastOrNull()?.path
+                    } else {
+                        state.activePath
+                    }
+                    state.copy(tabs = tabs, activePath = active)
+                }
+            }
             is ExplorerUiEffect.Renamed -> {
                 session?.notifyRenamed(effect.from, effect.to)
                 persist { state ->
