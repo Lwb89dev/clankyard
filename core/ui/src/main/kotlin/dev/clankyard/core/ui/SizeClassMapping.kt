@@ -38,6 +38,14 @@ fun windowWidthBucket(widthDp: Float): WindowWidthBucket = when {
 fun sizeClassFromWidthDp(widthDp: Float): SizeClass =
     sizeClassFromBucket(windowWidthBucket(widthDp))
 
+/**
+ * Landscape is a deliberate three-pane posture for the workshop. A phone in
+ * landscape can be narrower than the regular medium breakpoint, but it still
+ * has horizontal space for Files, Editor, and Clanker side by side.
+ */
+fun sizeClassFromWindowDp(widthDp: Float, heightDp: Float): SizeClass =
+    if (widthDp > heightDp) SizeClass.Expanded else sizeClassFromWidthDp(widthDp)
+
 fun sizeClassFromBucket(bucket: WindowWidthBucket): SizeClass = when (bucket) {
     WindowWidthBucket.Compact -> SizeClass.Compact
     WindowWidthBucket.Medium -> SizeClass.Medium

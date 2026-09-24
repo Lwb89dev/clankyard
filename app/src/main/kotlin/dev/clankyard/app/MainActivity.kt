@@ -25,6 +25,7 @@ import dev.clankyard.app.shell.AdaptiveShellState
 import dev.clankyard.app.shell.FeaturePlaceholder
 import dev.clankyard.app.shell.WorkshopPickerScreen
 import dev.clankyard.app.shell.rememberHeightCompact
+import dev.clankyard.app.shell.rememberIsLandscape
 import dev.clankyard.app.shell.rememberWorkshopSizeClass
 import dev.clankyard.app.shell.toWorkshopShortcut
 import dev.clankyard.core.model.WorkspaceId
@@ -127,6 +128,7 @@ private fun WorkshopScreen(
     onThemeChanged: (WorkshopTheme) -> Unit,
 ) {
     val sizeClass = rememberWorkshopSizeClass()
+    val landscape = rememberIsLandscape()
     val heightCompact = rememberHeightCompact()
     val uiState by workspaceSession.uiState.collectAsStateWithLifecycle()
     val chromeState by workspaceSession.chrome.collectAsStateWithLifecycle()
@@ -147,7 +149,9 @@ private fun WorkshopScreen(
     val activeFromSession = collectActivePath(session)
     val dirty = collectDirty(session)
     val controller = remember { CodeEditorController() }
-    val chrome = chromeState ?: restoreSizeClass(uiState.lastSizeClass, sizeClass, uiState)
+    val chrome = chromeState
+        ?.takeIf { it.to == sizeClass }
+        ?: restoreSizeClass(uiState.lastSizeClass, sizeClass, uiState)
     val activePath = activeFromSession ?: uiState.activePath
     val documents = uiState.tabs.mapNotNull { documentsMap[it.path] }
         .ifEmpty { documentsMap.values.toList() }
@@ -159,6 +163,7 @@ private fun WorkshopScreen(
     AdaptiveShell(
         state = AdaptiveShellState(
             sizeClass = sizeClass,
+            landscape = landscape,
             heightCompact = heightCompact,
             chrome = chrome,
             workshopName = workshopName,

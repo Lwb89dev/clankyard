@@ -43,6 +43,14 @@ class SizeClassMappingTest {
     }
 
     @Test
+    fun landscapeUsesThreePanePostureEvenBelowMediumWidth() {
+        assertEquals(SizeClass.Expanded, sizeClassFromWindowDp(520f, 360f))
+        assertEquals(SizeClass.Expanded, sizeClassFromWindowDp(1280f, 800f))
+        assertEquals(SizeClass.Medium, sizeClassFromWindowDp(800f, 1280f))
+        assertEquals(SizeClass.Compact, sizeClassFromWindowDp(520f, 800f))
+    }
+
+    @Test
     fun expandedToCompactKeepsTabsAndStoresWeights() {
         val restore = restoreSizeClass(SizeClass.Expanded, SizeClass.Compact, stored)
         assertEquals(WorkshopLayout.CompactDestinations, restore.layout)

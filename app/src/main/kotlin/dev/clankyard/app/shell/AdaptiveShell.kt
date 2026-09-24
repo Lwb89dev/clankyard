@@ -59,7 +59,7 @@ import dev.clankyard.core.ui.SizeClassRestore
 import dev.clankyard.core.ui.WorkshopLayout
 import dev.clankyard.core.ui.WorkshopSemantics
 import dev.clankyard.core.ui.isHeightCompact
-import dev.clankyard.core.ui.sizeClassFromWidthDp
+import dev.clankyard.core.ui.sizeClassFromWindowDp
 import dev.clankyard.core.ui.theme.PathTextStyle
 import dev.clankyard.core.ui.theme.WorkshopWindowSurface
 import dev.clankyard.editor.CodeEditorController
@@ -72,6 +72,7 @@ import dev.clankyard.feature.search.SearchUiState
 
 data class AdaptiveShellState(
     val sizeClass: SizeClass,
+    val landscape: Boolean,
     val heightCompact: Boolean,
     val chrome: SizeClassRestore,
     val workshopName: String,
@@ -92,7 +93,14 @@ fun rememberWorkshopSizeClass(): SizeClass {
     val size = LocalWindowInfo.current.containerSize
     val density = LocalDensity.current
     val widthDp = with(density) { size.width.toDp() }
-    return sizeClassFromWidthDp(widthDp.value)
+    val heightDp = with(density) { size.height.toDp() }
+    return sizeClassFromWindowDp(widthDp.value, heightDp.value)
+}
+
+@Composable
+fun rememberIsLandscape(): Boolean {
+    val size = LocalWindowInfo.current.containerSize
+    return size.width > size.height
 }
 
 @Composable
@@ -417,11 +425,11 @@ private fun ExpandedBody(
     var bottomW by remember(state.chrome.bottomWeight) { mutableFloatStateOf(state.chrome.bottomWeight) }
     var rowWidth by remember { mutableFloatStateOf(1f) }
     Row(Modifier.fillMaxSize().onSizeChanged { rowWidth = it.width.toFloat().coerceAtLeast(1f) }) {
-        if (!state.chrome.filesCollapsed) {
+        if (!state.chrome.filesCollapsed || state.landscape) {
             WorkshopWindowSurface(
                 modifier = Modifier
                     .weight(filesW.coerceAtLeast(0.12f))
-                    .widthIn(min = 140.dp),
+                    .widthIn(min = if (state.landscape) 0.dp else 140.dp),
             ) {
                 ExplorerPane(
                     state = state.explorerState,
@@ -444,7 +452,7 @@ private fun ExpandedBody(
         WorkshopWindowSurface(
             modifier = Modifier
                 .weight(editorW.coerceAtLeast(0.3f))
-                .widthIn(min = 240.dp),
+                .widthIn(min = if (state.landscape) 0.dp else 240.dp),
         ) {
             EditorColumn(
                 state = state,
@@ -468,7 +476,7 @@ private fun ExpandedBody(
                 gitContent = gitContent,
             )
         }
-        if (state.chrome.clankerDocked || state.chrome.clankerVisible) {
+        if (state.landscape || state.chrome.clankerDocked || state.chrome.clankerVisible) {
             VerticalPaneHandle(
                 contentDescription = WorkshopSemantics.HANDLE_CLANKER,
                 onDrag = { dx ->
@@ -481,7 +489,7 @@ private fun ExpandedBody(
             WorkshopWindowSurface(
                 modifier = Modifier
                     .weight(clankerW.coerceAtLeast(0.12f))
-                    .widthIn(min = 160.dp),
+                    .widthIn(min = if (state.landscape) 0.dp else 160.dp),
             ) {
                 clankerContent(Modifier.fillMaxSize())
             }

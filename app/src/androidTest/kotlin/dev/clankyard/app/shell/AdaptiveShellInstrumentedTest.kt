@@ -154,6 +154,7 @@ private fun shellState(
     )
     return AdaptiveShellState(
         sizeClass = sizeClass,
+        landscape = false,
         heightCompact = false,
         chrome = restoreSizeClass(SizeClass.Expanded, sizeClass, stored),
         workshopName = "workshop",

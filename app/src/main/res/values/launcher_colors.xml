@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Keeps the adaptive icon distinguishable from dark launcher backgrounds. -->
+    <color name="ic_launcher_background">#241C16</color>
+</resources>
