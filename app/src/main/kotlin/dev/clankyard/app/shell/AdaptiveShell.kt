@@ -153,6 +153,7 @@ fun AdaptiveShell(
             }
         },
         containerColor = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onSurface,
     ) { innerPadding ->
         Box(Modifier.padding(innerPadding).fillMaxSize()) {
             WorkshopBody(
