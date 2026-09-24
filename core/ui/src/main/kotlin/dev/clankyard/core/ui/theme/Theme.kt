@@ -129,6 +129,7 @@ fun WorkshopWindowSurface(
         modifier = modifier,
         shape = shape,
         color = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = tonalElevation,
     ) {
         Box(
