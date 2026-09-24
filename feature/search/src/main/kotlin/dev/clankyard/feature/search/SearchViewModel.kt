@@ -1,5 +1,6 @@
 package dev.clankyard.feature.search
 
+import dev.clankyard.search.DEFAULT_MAX_HITS
 import dev.clankyard.search.ProjectSearch
 import dev.clankyard.search.SearchHit
 import dev.clankyard.search.SearchQuery
@@ -72,7 +73,7 @@ class SearchViewModel(
             it.copy(
                 searching = false,
                 hits = hits,
-                truncated = hits.size >= SearchQuery.DEFAULT_MAX_MATCHES,
+                truncated = hits.size >= DEFAULT_MAX_HITS,
                 message = null,
             )
         }
