@@ -63,9 +63,9 @@ fun UnifiedDiffPane(
 private fun colorFor(kind: DiffLineKind): Color {
     val scheme = MaterialTheme.colorScheme
     return when (kind) {
-        DiffLineKind.Added -> scheme.tertiary
-        DiffLineKind.Removed -> scheme.primary
-        DiffLineKind.Hunk -> scheme.secondary
+        DiffLineKind.Added -> Color(0xFF70D990)
+        DiffLineKind.Removed -> Color(0xFFFF786F)
+        DiffLineKind.Hunk -> scheme.primary
         DiffLineKind.Header -> scheme.onSurfaceVariant
         DiffLineKind.Context, DiffLineKind.Other -> scheme.onSurface
     }

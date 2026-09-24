@@ -1,16 +1,21 @@
 package dev.clankyard.feature.explorer
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -35,6 +40,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.clankyard.core.model.WorkspacePath
 import dev.clankyard.core.ui.theme.PathTextStyle
+import dev.clankyard.core.ui.theme.WorkshopSectionHeader
+import dev.clankyard.core.ui.theme.WorkshopStatusPill
 import dev.clankyard.core.ui.theme.WorkshopWindowSurface
 
 @Composable
@@ -44,8 +51,20 @@ fun ExplorerPane(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
+        WorkshopSectionHeader(
+            kicker = "scrap index",
+            title = "Files",
+            trailing = { WorkshopStatusPill("${state.rows.size} items") },
+        )
         ExplorerToolbar(onEvent)
-        state.message?.let { Text(it, modifier = Modifier.padding(8.dp)) }
+        state.message?.let {
+            Text(
+                "> $it",
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
         LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
             items(state.rows, key = { it.path.relative }) { row ->
                 ExplorerRowItem(
@@ -73,7 +92,11 @@ fun ExplorerPane(
 @Composable
 private fun ExplorerToolbar(onEvent: (ExplorerUiEvent) -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
+            .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         TextButton(onClick = { onEvent(ExplorerUiEvent.RequestNewFile()) }) { Text("New file") }
@@ -92,12 +115,28 @@ private fun ExplorerRowItem(
     onEvent: (ExplorerUiEvent) -> Unit,
 ) {
     val prefix = when {
-        !row.isDirectory -> "  "
-        row.expanded -> "▾ "
-        else -> "▸ "
+        !row.isDirectory -> "· "
+        row.expanded -> "▾ [D] "
+        else -> "▸ [D] "
     }
     val label = prefix + row.name
-    Box(Modifier.fillMaxWidth()) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .background(
+                if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                else androidx.compose.ui.graphics.Color.Transparent,
+            ),
+    ) {
+        if (selected) {
+            Box(
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .width(3.dp)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.primary),
+            )
+        }
         Text(
             text = label,
             style = PathTextStyle,

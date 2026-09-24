@@ -1,5 +1,6 @@
 package dev.clankyard.app.shell
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,6 +47,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -53,6 +55,7 @@ import dev.clankyard.app.session.CompactDestination
 import dev.clankyard.app.session.WorkshopCommand
 import dev.clankyard.app.session.WorkshopPaletteKind
 import dev.clankyard.core.model.WorkspacePath
+import dev.clankyard.core.ui.R
 import dev.clankyard.core.ui.BottomTab
 import dev.clankyard.core.ui.OpenTab
 import dev.clankyard.core.ui.SizeClass
@@ -62,6 +65,8 @@ import dev.clankyard.core.ui.WorkshopSemantics
 import dev.clankyard.core.ui.isHeightCompact
 import dev.clankyard.core.ui.sizeClassFromWindowDp
 import dev.clankyard.core.ui.theme.PathTextStyle
+import dev.clankyard.core.ui.theme.WorkshopHazardStrip
+import dev.clankyard.core.ui.theme.WorkshopStatusPill
 import dev.clankyard.core.ui.theme.WorkshopWindowSurface
 import dev.clankyard.editor.CodeEditorController
 import dev.clankyard.editor.OpenDocument
@@ -517,6 +522,7 @@ private fun EditorColumn(
     gitContent: @Composable (Modifier) -> Unit = {},
 ) {
     var colH by remember { mutableFloatStateOf(1f) }
+    val normalizedBottomWeight = bottomWeight.coerceIn(0.12f, 0.6f)
     Column(modifier.fillMaxSize().onSizeChanged { colH = it.height.toFloat().coerceAtLeast(1f) }) {
         EditorHost(
             documents = state.documents,
@@ -527,7 +533,9 @@ private fun EditorColumn(
             onCloseTab = onCloseTab,
             onEdit = onEdit,
             onCursor = onCursor,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(
+                if (state.chrome.bottomCollapsed) 1f else 1f - normalizedBottomWeight,
+            ),
         )
         if (!state.chrome.bottomCollapsed) {
             HorizontalPaneHandle(
@@ -538,7 +546,7 @@ private fun EditorColumn(
             BottomToolsPane(
                 selected = state.chrome.bottomTab,
                 onSelect = onBottomTab,
-                modifier = Modifier.weight(bottomWeight.coerceAtLeast(0.12f)),
+                modifier = Modifier.weight(normalizedBottomWeight),
                 terminalContent = terminalContent,
                 gitContent = gitContent,
             )
@@ -592,44 +600,62 @@ private fun WorkshopTopBar(
     onCloseWorkspace: () -> Unit,
 ) {
     var confirmClose by remember { mutableStateOf(false) }
-    val mark = if (dirty) "• " else ""
     WorkshopWindowSurface {
-        Row(
-            modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("$mark$name", style = PathTextStyle, modifier = Modifier.weight(1f))
-            TextButton(onClick = onSave) { Text("Save") }
-            if (sizeClass != SizeClass.Compact) {
-                TextButton(onClick = onToggleFiles) { Text("Files") }
-                TextButton(onClick = onToggleClanker) { Text("Clanker") }
-                Button(
-                    onClick = onShowTerminal,
-                    modifier = Modifier.semantics(mergeDescendants = true) {
-                        contentDescription = "Open ${WorkshopSemantics.NAV_TERMINAL}"
-                    },
-                ) { Text("Terminal") }
-                TextButton(onClick = onToggleBottom) { Text("Panel") }
-            }
-            IconButton(
-                onClick = onSettings,
-                modifier = Modifier.semantics { contentDescription = WorkshopSemantics.SETTINGS_BUTTON },
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
+                Image(
+                    painter = painterResource(R.drawable.clanker_still),
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(42.dp).padding(end = 6.dp),
                 )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "CLANKYARD // LOCAL BAY",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(name, style = PathTextStyle, maxLines = 1)
+                }
+                if (dirty && sizeClass == SizeClass.Expanded) {
+                    WorkshopStatusPill("buffer dirty", modifier = Modifier.padding(end = 4.dp))
+                }
+                TextButton(onClick = onSave) { Text(if (sizeClass == SizeClass.Compact) "SV" else "Save") }
+                if (sizeClass != SizeClass.Compact) {
+                    val expanded = sizeClass == SizeClass.Expanded
+                    TextButton(onClick = onToggleFiles) { Text(if (expanded) "[FILES]" else "FS") }
+                    TextButton(onClick = onToggleClanker) { Text(if (expanded) "[CLANKER]" else "AI") }
+                    Button(
+                        onClick = onShowTerminal,
+                        modifier = Modifier.semantics(mergeDescendants = true) {
+                            contentDescription = "Open ${WorkshopSemantics.NAV_TERMINAL}"
+                        },
+                    ) { Text(if (expanded) ">_ TERMINAL" else ">_") }
+                    TextButton(onClick = onToggleBottom) { Text(if (expanded) "[PANEL]" else "PN") }
+                }
+                IconButton(
+                    onClick = onSettings,
+                    modifier = Modifier.semantics { contentDescription = WorkshopSemantics.SETTINGS_BUTTON },
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                IconButton(
+                    onClick = { confirmClose = true },
+                    modifier = Modifier.semantics { contentDescription = WorkshopSemantics.CLOSE_WORKSHOP },
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = null,
+                    )
+                }
             }
-            IconButton(
-                onClick = { confirmClose = true },
-                modifier = Modifier.semantics { contentDescription = WorkshopSemantics.CLOSE_WORKSHOP },
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Close,
-                    contentDescription = null,
-                )
-            }
+            WorkshopHazardStrip(Modifier.fillMaxWidth().height(3.dp))
         }
     }
     if (confirmClose) {
@@ -670,7 +696,7 @@ private fun CompactBottomNav(
                 NavigationBarItem(
                     selected = dest == selected,
                     onClick = { onNavigate(dest) },
-                    icon = { Text(dest.name.take(1)) },
+                    icon = { Text(dest.sigil(), style = MaterialTheme.typography.labelMedium) },
                     label = { Text(dest.displayName()) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -700,7 +726,7 @@ private fun CompactNavRail(
                 NavigationRailItem(
                     selected = dest == selected,
                     onClick = { onNavigate(dest) },
-                    icon = { Text(dest.name.take(1)) },
+                    icon = { Text(dest.sigil(), style = MaterialTheme.typography.labelMedium) },
                     label = { Text(dest.displayName()) },
                     colors = NavigationRailItemDefaults.colors(
                         selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -738,6 +764,14 @@ private fun CompactDestination.displayName(): String = when (this) {
     CompactDestination.Clanker -> "AI chat"
     CompactDestination.Terminal -> "Terminal"
     CompactDestination.Git -> "Git"
+}
+
+private fun CompactDestination.sigil(): String = when (this) {
+    CompactDestination.Editor -> "</>"
+    CompactDestination.Files -> "FS"
+    CompactDestination.Clanker -> "AI"
+    CompactDestination.Terminal -> ">_"
+    CompactDestination.Git -> "GT"
 }
 
 private fun shiftWeight(left: Float, right: Float, delta: Float): Pair<Float, Float> {

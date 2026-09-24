@@ -58,6 +58,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.clankyard.core.ui.theme.WorkshopTheme
+import dev.clankyard.core.ui.theme.WorkshopPanel
+import dev.clankyard.core.ui.theme.WorkshopSectionHeader
+import dev.clankyard.core.ui.theme.WorkshopStatusPill
 import dev.clankyard.core.ui.theme.WorkshopWindowSurface
 
 private const val BYOK_COPY =
@@ -171,11 +174,19 @@ fun SettingsScreenContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Settings", style = MaterialTheme.typography.titleLarge)
-        Text(
-            "The workshop works with no AI key. Secrets never leave this device.",
-            style = MaterialTheme.typography.bodyMedium,
+        WorkshopSectionHeader(
+            kicker = "control room // system config",
+            title = "Settings",
+            trailing = { WorkshopStatusPill("local secure") },
         )
+        WorkshopPanel(Modifier.fillMaxWidth()) {
+            Text(
+                "> The workshop works with no AI key. Secrets never leave this device.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(12.dp),
+            )
+        }
         SectionTitle("Theme")
         Text("Choose the accent color for the workshop.", style = MaterialTheme.typography.bodySmall)
         ChipRow {
@@ -386,7 +397,21 @@ private fun ProviderPane(
 
 @Composable
 private fun SectionTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            ":: ${text.uppercase()}",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f),
+        )
+    }
 }
 
 @Composable

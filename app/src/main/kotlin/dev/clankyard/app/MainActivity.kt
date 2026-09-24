@@ -32,8 +32,8 @@ import dev.clankyard.core.model.WorkspaceId
 import dev.clankyard.core.model.WorkspacePath
 import dev.clankyard.core.ui.restoreSizeClass
 import dev.clankyard.core.ui.theme.ClankyardTheme
+import dev.clankyard.core.ui.theme.WorkshopBackdrop
 import dev.clankyard.core.ui.theme.WorkshopTheme
-import dev.clankyard.core.ui.theme.WorkshopWindowSurface
 import dev.clankyard.editor.CodeEditorController
 import dev.clankyard.editor.EditorSession
 import dev.clankyard.editor.OpenDocument
@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             var selectedTheme by remember { mutableStateOf(workshopSettings.read().theme) }
             ClankyardTheme(theme = selectedTheme) {
-                WorkshopWindowSurface(
+                WorkshopBackdrop(
                     modifier = Modifier
                         .fillMaxSize()
                         .onPreviewKeyEvent { event ->

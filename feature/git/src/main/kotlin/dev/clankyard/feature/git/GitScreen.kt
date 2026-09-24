@@ -1,5 +1,6 @@
 package dev.clankyard.feature.git
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import dev.clankyard.core.model.WorkspacePath
 import dev.clankyard.core.ui.theme.PathTextStyle
+import dev.clankyard.core.ui.theme.WorkshopSectionHeader
+import dev.clankyard.core.ui.theme.WorkshopStatusPill
 
 @Composable
 fun GitScreen(viewModel: GitViewModel, modifier: Modifier = Modifier) {
@@ -39,13 +42,23 @@ fun GitScreenContent(
     onEvent: (GitUiEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val branch = state.branch ?: "no branch"
-        Text(
-            text = if (state.repoPresent) "Git · $branch" else "No git repository",
-            style = MaterialTheme.typography.titleLarge,
+        WorkshopSectionHeader(
+            kicker = "version forge",
+            title = if (state.repoPresent) "Git // $branch" else "No git repository",
+            trailing = {
+                WorkshopStatusPill(
+                    if (state.repoPresent) "tracked" else "unmounted",
+                    active = state.repoPresent,
+                )
+            },
         )
-        Text("Clanker does not commit. You do.", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "// Clanker does not commit. You do.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         if (!state.repoPresent && !state.busy) {
             Button(onClick = { onEvent(GitUiEvent.Init) }, enabled = state.identityReady) {
                 Text("Init repository")
@@ -150,8 +163,13 @@ private fun StatusRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(
+                if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.24f)
+                else androidx.compose.ui.graphics.Color.Transparent,
+                MaterialTheme.shapes.small,
+            )
             .clickable { onEvent(GitUiEvent.Select(path)) }
-            .padding(vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 5.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         val label = if (selected) "▸ ${path.relative}" else path.relative

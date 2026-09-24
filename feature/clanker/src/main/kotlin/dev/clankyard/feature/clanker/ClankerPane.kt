@@ -2,6 +2,7 @@ package dev.clankyard.feature.clanker
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -49,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import dev.clankyard.ai.context.AgentMode
 import dev.clankyard.core.ui.R
 import dev.clankyard.core.ui.WorkshopSemantics
+import dev.clankyard.core.ui.theme.WorkshopPanel
+import dev.clankyard.core.ui.theme.WorkshopStatusPill
 
 @Composable
 fun ClankerPane(viewModel: ClankerViewModel?, modifier: Modifier = Modifier) {
@@ -64,27 +67,90 @@ fun ClankerPane(viewModel: ClankerViewModel?, modifier: Modifier = Modifier) {
             .imePadding()
             .padding(8.dp)
             .semantics { contentDescription = WorkshopSemantics.CLANKER_PANE },
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("The Clanker", style = MaterialTheme.typography.titleMedium)
-        Text(state.status, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+        WorkshopPanel(modifier = Modifier.fillMaxWidth(), accent = true) {
+            Row(
+                modifier = Modifier.padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.clanker_still),
+                    contentDescription = WorkshopSemantics.CLANKER_STILL,
+                    modifier = Modifier.size(58.dp),
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "AI MECHANIC // BAY 03",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text("THE CLANKER", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        state.status,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                WorkshopStatusPill(if (state.running) "working" else "idle", active = !state.needsKey)
+            }
+        }
         Row(
-            Modifier
-                .padding(top = 8.dp)
-                .horizontalScroll(rememberScrollState()),
+            Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             AgentMode.entries.forEach { mode ->
                 FilterChip(
                     selected = state.mode == mode,
                     onClick = { viewModel.onEvent(ClankerEvent.Mode(mode)) },
                     label = { Text(mode.name) },
-                    modifier = Modifier.padding(end = 8.dp),
                 )
             }
         }
-        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp)) {
+        LazyColumn(
+            Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            if (state.lines.isEmpty()) {
+                item {
+                    WorkshopPanel(Modifier.fillMaxWidth()) {
+                        Column(
+                            Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text("> WAKE SIGNAL RECEIVED", color = MaterialTheme.colorScheme.primary)
+                            Text(
+                                "Drop a task on the bench. I can inspect code, plan repairs and prepare patches.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
             items(state.lines) { line ->
                 val who = if (line.fromUser) "You" else "Clanker"
-                Text("$who: ${line.text}", modifier = Modifier.padding(bottom = 6.dp))
+                WorkshopPanel(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            start = if (line.fromUser) 28.dp else 0.dp,
+                            end = if (line.fromUser) 0.dp else 28.dp,
+                        ),
+                    accent = !line.fromUser,
+                ) {
+                    Column(Modifier.padding(horizontal = 11.dp, vertical = 9.dp)) {
+                        Text(
+                            who.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (line.fromUser) MaterialTheme.colorScheme.onSurfaceVariant
+                            else MaterialTheme.colorScheme.primary,
+                        )
+                        Text(line.text, modifier = Modifier.padding(top = 3.dp))
+                    }
+                }
             }
         }
         state.patch?.let { patch ->
@@ -119,12 +185,14 @@ fun ClankerPane(viewModel: ClankerViewModel?, modifier: Modifier = Modifier) {
             }
         }
         if (state.needsKey) {
-            Image(
-                painter = painterResource(R.drawable.clanker_still),
-                contentDescription = WorkshopSemantics.CLANKER_STILL,
-                modifier = Modifier.size(72.dp).padding(top = 4.dp),
-            )
-            Text("configure a key in Settings, or just keep welding files.")
+            WorkshopPanel(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "> CORE MISSING: configure a key in Settings, or just keep welding files.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(10.dp),
+                )
+            }
         }
         OutlinedTextField(
             value = state.draft,
@@ -139,7 +207,7 @@ fun ClankerPane(viewModel: ClankerViewModel?, modifier: Modifier = Modifier) {
                     viewModel.onEvent(ClankerEvent.RequestSend)
                     true
                 },
-            label = { Text("Ask the Clanker") },
+            label = { Text("Feed the Clanker a task") },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(
                 onSend = { viewModel.onEvent(ClankerEvent.RequestSend) },

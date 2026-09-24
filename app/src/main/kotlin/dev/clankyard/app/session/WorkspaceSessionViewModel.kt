@@ -311,11 +311,19 @@ class WorkspaceSessionViewModel @Inject constructor(
             navigateCompact(CompactDestination.Terminal)
             return
         }
+        val bottomWeight = maxOf(_chrome.value?.bottomWeight ?: 0.28f, 0.32f)
         _chrome.value = _chrome.value?.copy(
             bottomCollapsed = false,
             bottomTab = BottomTab.Terminal,
+            bottomWeight = bottomWeight,
         )
-        persist { it.copy(bottomCollapsed = false, bottomTab = BottomTab.Terminal) }
+        persist {
+            it.copy(
+                bottomCollapsed = false,
+                bottomTab = BottomTab.Terminal,
+                bottomWeight = bottomWeight,
+            )
+        }
     }
 
     fun saveActive() {

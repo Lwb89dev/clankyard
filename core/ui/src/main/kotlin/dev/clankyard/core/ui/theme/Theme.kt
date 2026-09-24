@@ -2,10 +2,12 @@ package dev.clankyard.core.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -16,6 +18,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -52,8 +55,8 @@ enum class WorkshopTheme(
         darkPrimaryContainer = RustOrange,
         lightWindowStart = Color(0xFFF8EBD9),
         lightWindowEnd = Color(0xFFE6D1B8),
-        darkWindowStart = Color(0xFF2A1C15),
-        darkWindowEnd = Color(0xFF15100D),
+        darkWindowStart = Color(0xFF261A15),
+        darkWindowEnd = Color(0xFF0E0C0B),
     ),
     Terminal(
         id = "terminal",
@@ -64,8 +67,8 @@ enum class WorkshopTheme(
         darkPrimaryContainer = Color(0xFF1F6E39),
         lightWindowStart = Color(0xFFEEF9F0),
         lightWindowEnd = Color(0xFFD5EBDD),
-        darkWindowStart = Color(0xFF13291B),
-        darkWindowEnd = Color(0xFF0B1510),
+        darkWindowStart = Color(0xFF102419),
+        darkWindowEnd = Color(0xFF080D0A),
     ),
     Nostr(
         id = "nostr",
@@ -76,8 +79,8 @@ enum class WorkshopTheme(
         darkPrimaryContainer = Color(0xFF7135A8),
         lightWindowStart = Color(0xFFF7EEFF),
         lightWindowEnd = Color(0xFFE3D1F2),
-        darkWindowStart = Color(0xFF251832),
-        darkWindowEnd = Color(0xFF130E1A),
+        darkWindowStart = Color(0xFF21142D),
+        darkWindowEnd = Color(0xFF0D0912),
     ),
     Firered(
         id = "firered",
@@ -88,8 +91,8 @@ enum class WorkshopTheme(
         darkPrimaryContainer = Color(0xFFB3261E),
         lightWindowStart = Color(0xFFFFF0EE),
         lightWindowEnd = Color(0xFFF3D4D1),
-        darkWindowStart = Color(0xFF30171A),
-        darkWindowEnd = Color(0xFF190E10),
+        darkWindowStart = Color(0xFF2B1416),
+        darkWindowEnd = Color(0xFF10090A),
     ),
     Deepsea(
         id = "deepsea",
@@ -100,8 +103,8 @@ enum class WorkshopTheme(
         darkPrimaryContainer = Color(0xFF006B8F),
         lightWindowStart = Color(0xFFECF9FD),
         lightWindowEnd = Color(0xFFD1EAF2),
-        darkWindowStart = Color(0xFF122A34),
-        darkWindowEnd = Color(0xFF0B171D),
+        darkWindowStart = Color(0xFF102630),
+        darkWindowEnd = Color(0xFF080E11),
     ),
     ;
 
@@ -128,10 +131,13 @@ fun WorkshopWindowSurface(
         // The surface must respect the slot that owns it. A fillMaxSize here
         // makes a top/bottom Scaffold slot consume the whole viewport and
         // hides the workspace panes underneath it.
-        modifier = modifier.background(
-            brush = WorkshopWindowBrush(),
-            shape = shape,
-        ),
+        modifier = modifier
+            .background(brush = WorkshopWindowBrush(), shape = shape)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+                shape = shape,
+            ),
         shape = shape,
         color = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -145,7 +151,7 @@ fun WorkshopWindowSurface(
 
 private fun darkWorkshopScheme(theme: WorkshopTheme): ColorScheme = darkColorScheme(
     primary = theme.darkPrimary,
-    onPrimary = WorkshopNight,
+    onPrimary = SteelNight,
     primaryContainer = theme.darkPrimaryContainer,
     onPrimaryContainer = OxidizedCream,
     secondary = theme.darkPrimary,
@@ -156,11 +162,14 @@ private fun darkWorkshopScheme(theme: WorkshopTheme): ColorScheme = darkColorSch
     onTertiary = WorkshopPaper,
     background = theme.darkWindowEnd,
     onBackground = OnNight,
-    surface = theme.darkWindowStart,
+    surface = SteelNight,
     onSurface = OnNight,
-    surfaceVariant = theme.darkWindowEnd,
-    onSurfaceVariant = OxidizedCream,
-    outline = theme.darkPrimaryContainer,
+    surfaceVariant = theme.darkWindowStart,
+    onSurfaceVariant = MutedSteel,
+    outline = theme.darkPrimary.copy(alpha = 0.72f),
+    outlineVariant = Rivet,
+    error = Color(0xFFFF766D),
+    onError = SteelNight,
 )
 
 private fun lightWorkshopScheme(theme: WorkshopTheme): ColorScheme = lightColorScheme(
@@ -181,6 +190,15 @@ private fun lightWorkshopScheme(theme: WorkshopTheme): ColorScheme = lightColorS
     surfaceVariant = theme.lightWindowEnd,
     onSurfaceVariant = Rivet,
     outline = theme.lightPrimary,
+    outlineVariant = Rivet.copy(alpha = 0.62f),
+)
+
+private val ClankyardShapes = Shapes(
+    extraSmall = RoundedCornerShape(2.dp),
+    small = RoundedCornerShape(4.dp),
+    medium = RoundedCornerShape(8.dp),
+    large = RoundedCornerShape(12.dp),
+    extraLarge = RoundedCornerShape(18.dp),
 )
 
 @Composable
@@ -197,6 +215,7 @@ fun ClankyardTheme(
     MaterialTheme(
         colorScheme = if (darkTheme) darkWorkshopScheme(theme) else lightWorkshopScheme(theme),
         typography = ClankyardTypography,
+        shapes = ClankyardShapes,
     ) {
         androidx.compose.runtime.CompositionLocalProvider(
             LocalWorkshopGradient provides gradient,

@@ -34,7 +34,7 @@ fun FilePaletteDialog(
     val filtered = hits.filter { it.relative.contains(query, ignoreCase = true) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Go to file") },
+        title = { Text("// GO TO FILE") },
         text = {
             Column {
                 TextField(
@@ -49,7 +49,7 @@ fun FilePaletteDialog(
                 LazyColumn(Modifier.heightIn(max = 320.dp)) {
                     items(filtered, key = { it.relative }) { path ->
                         Text(
-                            text = path.relative,
+                            text = "> ${path.relative}",
                             style = PathTextStyle,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -73,12 +73,12 @@ fun CommandPaletteDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Command palette") },
+        title = { Text("// COMMAND DECK") },
         text = {
             Column {
                 WorkshopCommand.entries.forEach { command ->
                     Text(
-                        text = command.label,
+                        text = "> ${command.label}",
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onCommand(command) }
@@ -102,7 +102,7 @@ fun SearchPaletteDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Search workshop") },
+        title = { Text("// YARD SCANNER") },
         text = {
             SearchPane(
                 state = state,

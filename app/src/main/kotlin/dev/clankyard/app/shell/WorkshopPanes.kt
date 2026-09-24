@@ -2,6 +2,7 @@ package dev.clankyard.app.shell
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
@@ -17,7 +18,9 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SecondaryScrollableTabRow
 import androidx.compose.material3.Tab
@@ -26,6 +29,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -37,6 +41,8 @@ import dev.clankyard.core.ui.BottomTab
 import dev.clankyard.core.ui.OpenTab
 import dev.clankyard.core.ui.WorkshopSemantics
 import dev.clankyard.core.ui.theme.PathTextStyle
+import dev.clankyard.core.ui.theme.WorkshopPanel
+import dev.clankyard.core.ui.theme.WorkshopStatusPill
 import dev.clankyard.core.ui.theme.WorkshopWindowSurface
 import dev.clankyard.editor.CodeEditorController
 import dev.clankyard.editor.CodeEditorPane
@@ -66,7 +72,28 @@ fun EditorHost(
         }
         if (active == null) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Open a file from Files.")
+                WorkshopPanel(
+                    modifier = Modifier.padding(24.dp).widthIn(max = 460.dp),
+                    accent = true,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            "</>",
+                            style = MaterialTheme.typography.displaySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text("EDITOR BAY IDLE", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Open a file from Files.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        WorkshopStatusPill("waiting for material", active = false)
+                    }
+                }
             }
         } else {
             val cursor = tabs.firstOrNull { it.path == active.path }
@@ -98,30 +125,46 @@ private fun EditorTabRow(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 4.dp),
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
+            .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         documents.forEach { doc ->
             val mark = if (doc.dirty) "• " else ""
-            Text(
-                text = "$mark${doc.path.name.ifEmpty { doc.path.relative }}",
-                style = PathTextStyle,
-                color = if (doc.path == activePath) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
+            val active = doc.path == activePath
+            Row(
                 modifier = Modifier
+                    .clip(MaterialTheme.shapes.small)
+                    .background(
+                        if (active) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.34f)
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
+                    )
+                    .border(
+                        1.dp,
+                        if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.75f)
+                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
+                        MaterialTheme.shapes.small,
+                    )
                     .clickable { onSelectTab(doc.path) }
-                    .padding(8.dp),
-            )
-            Text(
-                text = "×",
-                modifier = Modifier
-                    .clickable { onCloseTab(doc.path) }
-                    .padding(end = 8.dp)
-                    .semantics { contentDescription = "Close ${doc.path.name}" },
-            )
+                    .padding(start = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "$mark${doc.path.name.ifEmpty { doc.path.relative }}",
+                    style = PathTextStyle,
+                    color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(vertical = 7.dp),
+                )
+                Text(
+                    text = "×",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clickable { onCloseTab(doc.path) }
+                        .padding(horizontal = 9.dp, vertical = 7.dp)
+                        .semantics { contentDescription = "Close ${doc.path.name}" },
+                )
+            }
         }
     }
 }
@@ -136,12 +179,13 @@ fun ClankerPlaceholder(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        WorkshopStatusPill("mechanic offline", active = false)
         Image(
             painter = painterResource(R.drawable.clanker_still),
             contentDescription = WorkshopSemantics.CLANKER_STILL,
             modifier = Modifier.size(96.dp),
         )
-        Text("configure a key", style = MaterialTheme.typography.titleLarge)
+        Text("CLANKER NEEDS A CORE", style = MaterialTheme.typography.titleLarge)
         Text(
             "The workshop works without AI. Transcript is ephemeral.",
             style = MaterialTheme.typography.bodyMedium,
@@ -220,9 +264,9 @@ fun VerticalPaneHandle(
     ) {
         Box(
             Modifier
-                .width(2.dp)
+                .width(3.dp)
                 .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.outline),
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
         )
     }
 }
@@ -253,8 +297,8 @@ fun HorizontalPaneHandle(
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(2.dp)
-                .background(MaterialTheme.colorScheme.outline),
+                .height(3.dp)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
         )
     }
 }
