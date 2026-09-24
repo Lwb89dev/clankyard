@@ -18,6 +18,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import dev.clankyard.app.session.EditorSessionViewModel
 import dev.clankyard.app.session.WorkspaceSessionViewModel
+import dev.clankyard.app.onboarding.OnboardingScreen
+import dev.clankyard.app.onboarding.OnboardingViewModel
 import dev.clankyard.app.shell.AdaptiveShell
 import dev.clankyard.app.shell.AdaptiveShellState
 import dev.clankyard.app.shell.FeaturePlaceholder
@@ -51,6 +53,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
     private val workspaceSession: WorkspaceSessionViewModel by viewModels()
     private val editorSession: EditorSessionViewModel by viewModels()
+    private val onboarding: OnboardingViewModel by viewModels()
     @Inject lateinit var workshopSettings: WorkshopSettingsStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,6 +74,7 @@ class MainActivity : ComponentActivity() {
                     ClankyardApp(
                         workspaceSession = workspaceSession,
                         editorSession = editorSession,
+                        onboarding = onboarding,
                         onThemeChanged = { selectedTheme = it },
                     )
                 }
@@ -83,10 +87,19 @@ class MainActivity : ComponentActivity() {
 fun ClankyardApp(
     workspaceSession: WorkspaceSessionViewModel,
     editorSession: EditorSessionViewModel,
+    onboarding: OnboardingViewModel,
     onThemeChanged: (WorkshopTheme) -> Unit = {},
 ) {
+    val onboardingState by onboarding.state.collectAsStateWithLifecycle()
     val workspace by workspaceSession.workspace.collectAsStateWithLifecycle()
     val records by workspaceSession.records.collectAsStateWithLifecycle()
+    LaunchedEffect(onboardingState.selectedWorkspaceId) {
+        onboardingState.selectedWorkspaceId?.let(workspaceSession::openWorkspace)
+    }
+    if (onboardingState.visible) {
+        OnboardingScreen(viewModel = onboarding)
+        return
+    }
     val current = workspace
     if (current == null) {
         WorkshopPickerScreen(
