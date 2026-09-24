@@ -258,7 +258,10 @@ class ExplorerViewModel(
     private suspend fun rebuild() {
         val rows = ArrayList<ExplorerRow>()
         val children = workspace.list(WorkspacePath.ROOT)
-        for (child in children) appendExpanded(child, 0, rows)
+        for (child in children) {
+            if (dev.clankyard.workspace.GeneratedDirNames.hides(child.path.name)) continue
+            appendExpanded(child, 0, rows)
+        }
         _state.update { it.copy(rows = rows) }
     }
 
@@ -274,7 +277,10 @@ class ExplorerViewModel(
         )
         if (!isExpanded) return
         val children = workspace.list(meta.path)
-        for (child in children) appendExpanded(child, depth + 1, into)
+        for (child in children) {
+            if (dev.clankyard.workspace.GeneratedDirNames.hides(child.path.name)) continue
+            appendExpanded(child, depth + 1, into)
+        }
     }
 }
 

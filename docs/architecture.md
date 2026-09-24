@@ -19,6 +19,8 @@ Single `MainActivity`, Jetpack Compose, Navigation 2, Hilt+KSP, UDF.
 | `:terminal:api` | `ExecutionBackend`, `SwitchingExecutionBackend` |
 | `:terminal:local` | `/system/bin/sh` via `ProcessBuilder` |
 | `:terminal:ssh` | Apache MINA SSHD client, password + host-key TOFU |
+| `:build:api` | File-free `BuildService` types (on-device BUILD) |
+| `:build:runtime` | Runtime packs, `LinkerExec` (no jniLibs) |
 | `:ai:provider-api` | `LlmProvider`, Completions/Messages HTTP |
 | `:ai:providers:*` | OpenAI, Anthropic, xAI, compatible, Fake |
 | `:ai:secret` | `SecretFilter` |
@@ -30,9 +32,15 @@ Single `MainActivity`, Jetpack Compose, Navigation 2, Hilt+KSP, UDF.
 
 ## Workshop files
 
-Workshops live under `filesDir/workspaces/`. SAF copy-in is a copy, not a
-live tree. Export (zip or tree write-back) is mandatory. Public FUSE is not
-the Git root — JGit needs `O_EXCL`-safe app storage (`core.filemode=false`).
+`WorkshopEnvironment` creates `filesDir/environment/` on first launch.
+Workshops live under `environment/workspaces/` (legacy `filesDir/workspaces/`
+is renamed once). SAF copy-in is a copy, not a live tree. Export is mandatory.
+Journals, drafts, and Keystore credentials stay **outside** `environment/`.
+Public FUSE is not the Git root (`core.filemode=false`).
+
+On-device BUILD runtimes, caches, tmp, and last APKs are siblings of
+`workspaces/` under `environment/` (`runtimes/`, `cache/`, `tmp/`,
+`artifacts/`). They are not workshop source. See `docs/build-on-device.md`.
 
 ## The Clanker
 
@@ -48,17 +56,21 @@ Transcript is ephemeral (process death drops it). Tabs restore from DataStore.
 
 ## Terminal
 
-`LocalProcessBackend` starts `/system/bin/sh -i` (or `/bin/sh` on the JVM)
-with cwd = workshop root, stderr merged, no PTY. Banner: “This is a sandbox
-shell, not a Linux distro.”
+`LocalProcessBackend` is a **one-shot** `/system/bin/sh -c` (or `/bin/sh` on
+the JVM), cwd jailed under `environment/`, no PTY, no `-i` (Android mkshrc
+`bind` spam). Banner: sandbox, cwd reset each line, not a Linux distro, not a
+chroot. `canExecUserBinaries` stays false. Downloaded JDK/aapt2 are **not**
+on this PATH.
 
-`SshExecutionBackend` (Settings → Execution → Remote SSH) opens a password
-session with Apache MINA SSHD. Unknown host keys are rejected and shown as
-`SHA256:…` until the user taps Trust. Slot `ssh.<host>` holds the password.
-Termux interop and on-device Android toolchains remain later work.
+`SshExecutionBackend` (Settings → Execution → Remote SSH) is interactive
+password + host-key TOFU. Slot `ssh.<host>`. SSH is not the on-device BUILD
+implementation.
 
 ## Chrome
 
-Expanded: files | editor | Clanker, plus a bottom tools strip (terminal / git).
-Compact: destinations, editor session Activity-retained so opening Clanker
-does not destroy dirty buffers.
+Expanded: files | editor | Clanker, plus bottom tabs Terminal / Problems /
+Git / Output (Problems and Output are BUILD surfaces). Compact: five
+destinations (Editor, Files, Clanker, Terminal, Git); Build log is a Dialog,
+not a sixth destination. Editor session is Activity-retained.
+
+

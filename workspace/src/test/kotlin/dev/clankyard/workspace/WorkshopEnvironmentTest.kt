@@ -22,6 +22,16 @@ class WorkshopEnvironmentTest {
         assertTrue(ws.isDirectory)
         assertTrue(WorkshopEnvironment.contains(env, ws))
         assertFalse(WorkshopEnvironment.contains(env, File(files, "credentials")))
+        for (dir in listOf(
+            WorkshopEnvironment.runtimesDir(files),
+            WorkshopEnvironment.cacheDir(files),
+            WorkshopEnvironment.tmpDir(files),
+            WorkshopEnvironment.artifactsDir(files),
+        )) {
+            assertTrue(dir.isDirectory)
+            assertTrue(WorkshopEnvironment.contains(env, dir))
+            assertFalse(WorkshopEnvironment.contains(dir, File(files, "credentials")))
+        }
     }
 
     @Test

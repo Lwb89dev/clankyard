@@ -37,6 +37,24 @@ class LocalProcessBackendTest {
     }
 
     @Test
+    fun bannerSkippedWhenFlagFalse() = runBlocking {
+        val cwd = tmp.newFolder("nobanner")
+        val events = withTimeout(10_000) {
+            LocalProcessBackend().start(
+                ExecutionSessionRequest(
+                    sessionId = SessionId("s-nb"),
+                    cwd = cwd,
+                    command = listOf(LocalProcessBackend.defaultShell(), "-c", "echo quiet"),
+                    emitLimitationBanner = false,
+                ),
+            ).toList()
+        }
+        val text = events.filterIsInstance<ExecutionEvent.Output>().joinToString("") { it.text }
+        assertTrue(text.contains("quiet"))
+        assertFalse(text.contains("Sandbox"))
+    }
+
+    @Test
     fun oneShotLsListsWorkshopFiles() = runBlocking {
         val cwd = tmp.newFolder("cwd")
         File(cwd, "hello.txt").writeText("x")

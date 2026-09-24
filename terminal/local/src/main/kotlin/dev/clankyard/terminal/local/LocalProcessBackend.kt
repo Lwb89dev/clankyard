@@ -39,9 +39,8 @@ class LocalProcessBackend(
         } else {
             session.command
         }
-        val builder = ProcessBuilder(command)
-            .directory(cwd)
-            .redirectErrorStream(true)
+        val builder = ProcessBuilder(command).directory(cwd)
+        if (session.mergeErrorStream) builder.redirectErrorStream(true)
         val env = builder.environment()
         if (File("/system/bin/sh").canExecute()) {
             env["PATH"] = ANDROID_PATH
@@ -58,7 +57,9 @@ class LocalProcessBackend(
             return@flow
         }
         sessions[session.sessionId] = process
-        emit(ExecutionEvent.Output("$HONEST\ncwd: ${cwd.path}\n"))
+        if (session.emitLimitationBanner) {
+            emit(ExecutionEvent.Output("$HONEST\ncwd: ${cwd.path}\n"))
+        }
         try {
             process.inputStream.bufferedReader().use { reader ->
                 while (true) {

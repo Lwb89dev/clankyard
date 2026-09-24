@@ -100,6 +100,12 @@ internal val DEFAULT_DENY_GLOBS = listOf(
     "*.secret",
     "credentials.json",
     "service-account*.json",
+    "*.apk",
+    "*.aab",
+    "*.dex",
+    "*.class",
+    "**/build/**",
+    "**/.gradle/**",
 )
 
 private val TEXT_EXTENSIONS = setOf(
@@ -145,6 +151,9 @@ private fun deniedDirectory(relative: String): Boolean {
     for (part in parts) {
         if (part.equals(".ssh", ignoreCase = true)) return true
         if (part.equals(".gnupg", ignoreCase = true)) return true
+        if (part.equals("build", ignoreCase = true)) return true
+        if (part.equals(".gradle", ignoreCase = true)) return true
+        if (part.equals("captures", ignoreCase = true)) return true
         if (part.endsWith(".xcuserdata", ignoreCase = true)) return true
     }
     val lower = relative.lowercase()

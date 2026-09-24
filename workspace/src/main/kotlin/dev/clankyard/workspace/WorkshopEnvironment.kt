@@ -21,8 +21,17 @@ object WorkshopEnvironment {
             readme.writeText(README)
         }
         workspacesDir(filesDir).mkdirs()
+        runtimesDir(filesDir).mkdirs()
+        cacheDir(filesDir).mkdirs()
+        tmpDir(filesDir).mkdirs()
+        artifactsDir(filesDir).mkdirs()
         return env
     }
+
+    fun runtimesDir(filesDir: File): File = File(root(filesDir), "runtimes")
+    fun cacheDir(filesDir: File): File = File(root(filesDir), "cache")
+    fun tmpDir(filesDir: File): File = File(root(filesDir), "tmp")
+    fun artifactsDir(filesDir: File): File = File(root(filesDir), "artifacts")
 
     fun workspacesDir(filesDir: File): File {
         val nested = File(root(filesDir), "workspaces")
@@ -47,5 +56,6 @@ object WorkshopEnvironment {
     private const val README =
         "Clankyard environment sandbox.\n" +
             "The local terminal runs commands with cwd in this folder (or a workshop under it).\n" +
-            "It is not a Linux chroot. Do not put secrets here; API keys live outside this tree.\n"
+            "It is not a Linux chroot. Do not put secrets here; API keys live outside this tree.\n" +
+            "Optional BUILD runtimes/cache/tmp/artifacts are siblings of workspaces/ here.\n"
 }

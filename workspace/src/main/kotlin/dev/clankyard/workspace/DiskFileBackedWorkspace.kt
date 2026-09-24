@@ -272,6 +272,7 @@ class DiskFileBackedWorkspace private constructor(
         out: MutableList<Pair<WorkspacePath, File>>,
     ) {
         if (isAtomicTempName(child.name)) return
+        if (GeneratedDirNames.hides(child.name)) return
         if (!containsCanonical(child)) return
         val rel = childRelative(parent, child.name) ?: return
         val link = Files.isSymbolicLink(child.toPath())

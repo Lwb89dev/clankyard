@@ -20,6 +20,8 @@ data class ExecutionSessionRequest(
     val cols: Int = 80,
     val rows: Int = 24,
     val pty: Boolean = false,
+    val emitLimitationBanner: Boolean = true,
+    val mergeErrorStream: Boolean = true,
 )
 
 sealed interface ExecutionEvent {

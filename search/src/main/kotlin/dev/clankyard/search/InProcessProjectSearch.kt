@@ -5,6 +5,7 @@ import dev.clankyard.workspace.BinaryFileException
 import dev.clankyard.workspace.FileMetadata
 import dev.clankyard.workspace.FileTooLargeException
 import dev.clankyard.workspace.Utf8BomDetectedException
+import dev.clankyard.workspace.GeneratedDirNames
 import dev.clankyard.workspace.Workspace
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +42,7 @@ class InProcessProjectSearch : ProjectSearch {
         hits: MutableList<SearchHit>,
     ) {
         if (child.isDirectory) {
+            if (GeneratedDirNames.hides(child.path.name)) return
             walk(workspace, child.path, query, hits)
             return
         }

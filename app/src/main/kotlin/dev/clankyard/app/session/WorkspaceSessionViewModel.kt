@@ -519,8 +519,12 @@ class WorkspaceSessionViewModel @Inject constructor(
         out: MutableList<WorkspacePath>,
     ) {
         for (child in ws.list(dir)) {
-            if (child.isDirectory) walkFiles(ws, child.path, out)
-            else out += child.path
+            if (child.isDirectory) {
+                if (dev.clankyard.workspace.GeneratedDirNames.hides(child.path.name)) continue
+                walkFiles(ws, child.path, out)
+            } else {
+                out += child.path
+            }
         }
     }
 
