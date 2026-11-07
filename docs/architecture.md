@@ -21,7 +21,8 @@ Single `MainActivity`, Jetpack Compose, Navigation 2, Hilt+KSP, UDF.
 | `:terminal:ssh` | Apache MINA SSHD client, password + host-key TOFU |
 | `:build:api` | File-free `BuildService` types (on-device BUILD) |
 | `:build:runtime` | Runtime packs, `LinkerExec` (no jniLibs) |
-| `:build:engine` | Project detection, build process backend, diagnostics (dormant until a verified toolchain exists) |
+| `:build:engine` | Project detection, Gradle driver, process backend, diagnostics |
+| `:feature:build` | Runtimes UI, Output/Problems, trust dialog, APK install coordinator |
 | `:ai:provider-api` | `LlmProvider`, Completions/Messages HTTP |
 | `:ai:providers:*` | OpenAI, Anthropic, xAI, compatible, Fake |
 | `:ai:secret` | `SecretFilter` |
@@ -29,7 +30,7 @@ Single `MainActivity`, Jetpack Compose, Navigation 2, Hilt+KSP, UDF.
 | `:ai:tools` | SAFE_READ + REVIEW_REQUIRED only |
 | `:ai:patch` | Replace-only `PatchEngine`, `ApplyPatchUseCase` |
 | `:ai:agent` | `DefaultAgentOrchestrator` (JVM; credential on the request) |
-| `:feature:*` | Explorer, search, git, diff, terminal, settings, clanker, picker |
+| `:feature:*` | Explorer, search, git, diff, terminal, settings, build, clanker, picker |
 
 ## Workshop files
 
@@ -52,6 +53,9 @@ On-device BUILD runtimes, caches, tmp, and last APKs are siblings of
    `DefaultAgentOrchestrator`.
 4. EDIT proposes a `PatchSet`. Accept calls `ApplyPatchUseCase`. Reject
    drops it. The orchestrator never writes and never commits.
+5. `propose_build` is REVIEW_REQUIRED (EDIT only). Accept starts
+   `assembleDebug`/`clean`/`rebuild` as `BuildRequester.ClankerPropose`.
+   `run_command` stays unregistered.
 
 Transcript is ephemeral (process death drops it). Tabs restore from DataStore.
 

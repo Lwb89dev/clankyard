@@ -20,6 +20,7 @@ fun KeyEvent.toWorkshopShortcut(): WorkshopShortcut? {
         Key.P -> WorkshopKey.P
         Key.F -> WorkshopKey.F
         Key.S -> WorkshopKey.S
+        Key.B -> WorkshopKey.B
         Key.Grave -> WorkshopKey.Grave
         Key.Z -> WorkshopKey.Z
         Key.Y -> WorkshopKey.Y

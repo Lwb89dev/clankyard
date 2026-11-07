@@ -44,11 +44,22 @@ import dev.clankyard.feature.settings.SettingsViewModel
 import dev.clankyard.feature.settings.WorkshopSettings
 import dev.clankyard.feature.settings.WorkshopSettingsStore
 import dev.clankyard.feature.terminal.TerminalSession
+import dev.clankyard.feature.build.BuildUiEvent
+import dev.clankyard.feature.build.BuildViewModel
+import dev.clankyard.build.api.BuildRequester
+import dev.clankyard.build.api.BuildTask
+import dev.clankyard.build.api.BuildTrust
+import dev.clankyard.build.engine.BuildProcessBackend
+import dev.clankyard.build.engine.DefaultBuildService
+import dev.clankyard.build.engine.GradleDriver
+import dev.clankyard.build.engine.ProjectDetector
+import dev.clankyard.build.runtime.RuntimeManager
 import dev.clankyard.git.GitRepository
 import dev.clankyard.search.ProjectSearch
 import dev.clankyard.terminal.api.ExecutionBackend
 import dev.clankyard.workspace.FileBackedWorkspace
 import dev.clankyard.workspace.FileWorkspaceRegistry
+import dev.clankyard.workspace.WorkshopEnvironment
 import dev.clankyard.workspace.Workspace
 import dev.clankyard.workspace.WorkspaceRecord
 import kotlinx.coroutines.Job
@@ -78,6 +89,8 @@ class WorkspaceSessionViewModel @Inject constructor(
     private val credentials: SecureCredentialStore,
     private val workshopSettings: WorkshopSettingsStore,
     private val execution: ExecutionBackend,
+    private val runtimes: RuntimeManager,
+    private val buildBackend: BuildProcessBackend,
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
     private val amber = AmberBridge(appContext)
@@ -153,6 +166,9 @@ class WorkspaceSessionViewModel @Inject constructor(
     private val _settings = MutableStateFlow<SettingsViewModel?>(null)
     val settings: StateFlow<SettingsViewModel?> = _settings.asStateFlow()
 
+    private val _build = MutableStateFlow<BuildViewModel?>(null)
+    val build: StateFlow<BuildViewModel?> = _build.asStateFlow()
+
     var editorController: CodeEditorController? = null
     private var editorVm: EditorSessionViewModel? = null
     private var cursorJob: Job? = null
@@ -194,6 +210,7 @@ class WorkspaceSessionViewModel @Inject constructor(
         _git.value?.close()
         _terminal.value?.close()
         _clanker.value?.onEvent(ClankerEvent.Cancel)
+        _build.value = null
         _workspace.value = null
         _explorer.value = null
         _search.value = null
@@ -372,6 +389,10 @@ class WorkspaceSessionViewModel @Inject constructor(
             true
         }
         WorkshopShortcut.DismissPalettes -> dismissPalette()
+        WorkshopShortcut.BuildDebug -> {
+            runCommand(WorkshopCommand.BuildDebug)
+            true
+        }
     }
 
     fun openPalette(kind: WorkshopPaletteKind) {
@@ -399,7 +420,14 @@ class WorkspaceSessionViewModel @Inject constructor(
             WorkshopCommand.ToggleClanker -> toggleClanker()
             WorkshopCommand.ToggleFiles -> toggleFiles()
             WorkshopCommand.Settings -> openPalette(WorkshopPaletteKind.Settings)
+            WorkshopCommand.BuildDebug -> startBuild(BuildTask.AssembleDebug)
+            WorkshopCommand.Clean -> startBuild(BuildTask.Clean)
+            WorkshopCommand.Rebuild -> startBuild(BuildTask.RebuildDebug)
         }
+    }
+
+    fun startBuild(task: BuildTask, requester: BuildRequester = BuildRequester.User) {
+        _build.value?.onEvent(BuildUiEvent.Start(task, requester))
     }
 
     private fun toggleTerminal() {
@@ -440,6 +468,57 @@ class WorkspaceSessionViewModel @Inject constructor(
         _git.value = GitViewModel(gitRepo, { _workspace.value as? FileBackedWorkspace }, viewModelScope)
         _terminal.value?.close()
         _terminal.value = TerminalSession(execution, { files?.root }, viewModelScope)
+        val filesDir = appContext.filesDir
+        val buildService = DefaultBuildService(
+            runtimes = runtimes,
+            detector = ProjectDetector(),
+            workspace = { _workspace.value as? FileBackedWorkspace },
+            trust = { id ->
+                if (id.value in workshopSettings.read().buildTrustedIds) BuildTrust.Granted
+                else BuildTrust.Denied
+            },
+            scope = viewModelScope,
+            backend = buildBackend,
+            driver = GradleDriver(workshopSettings.read().gradleXmxMb),
+            artifactsDir = WorkshopEnvironment.artifactsDir(filesDir),
+            cacheDir = WorkshopEnvironment.cacheDir(filesDir),
+            tmpDir = WorkshopEnvironment.tmpDir(filesDir),
+            heapMb = { workshopSettings.read().gradleXmxMb },
+        )
+        val buildVm = BuildViewModel(
+            service = buildService,
+            runtimes = runtimes,
+            detector = ProjectDetector(),
+            workspace = { _workspace.value as? FileBackedWorkspace },
+            workspaceId = { _workspace.value?.id },
+            isCompact = { (_chrome.value?.to ?: SizeClass.Compact) == SizeClass.Compact },
+            readAck = { workshopSettings.read().buildRuntimeAck },
+            writeAck = { value ->
+                workshopSettings.write(workshopSettings.read().copy(buildRuntimeAck = value))
+            },
+            trustedIds = { workshopSettings.read().buildTrustedIds },
+            writeTrusted = { ids ->
+                workshopSettings.write(workshopSettings.read().copy(buildTrustedIds = ids))
+            },
+            onOpenProblem = { path, line, col -> openPath(path, line, col) },
+            onShowOutput = {
+                val bottomWeight = maxOf(_chrome.value?.bottomWeight ?: 0.28f, 0.32f)
+                _chrome.value = _chrome.value?.copy(
+                    bottomCollapsed = false,
+                    bottomTab = BottomTab.Output,
+                    bottomWeight = bottomWeight,
+                )
+                persist {
+                    it.copy(
+                        bottomCollapsed = false,
+                        bottomTab = BottomTab.Output,
+                        bottomWeight = bottomWeight,
+                    )
+                }
+            },
+            scope = viewModelScope,
+        )
+        _build.value = buildVm
         _clanker.value = ClankerViewModel(
             workspace = { _workspace.value },
             fileWorkspace = { _workspace.value as? FileBackedWorkspace },
@@ -454,6 +533,8 @@ class WorkspaceSessionViewModel @Inject constructor(
             dirty = { editorVm?.session?.value?.dirty?.value.orEmpty() },
             currentFile = { editorVm?.session?.value?.activePath?.value },
             selection = { null },
+            buildQuery = { _build.value?.query() },
+            onAcceptBuild = { task -> startBuild(task, BuildRequester.ClankerPropose) },
             scope = viewModelScope,
         )
         if (_settings.value == null) {
@@ -586,4 +667,7 @@ enum class WorkshopCommand(val label: String) {
     ToggleClanker("Toggle Clanker"),
     ToggleFiles("Toggle files pane"),
     Settings("Settings"),
+    BuildDebug("Build debug"),
+    Clean("Clean"),
+    Rebuild("Rebuild debug"),
 }

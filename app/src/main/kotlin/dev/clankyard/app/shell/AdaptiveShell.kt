@@ -144,7 +144,11 @@ fun AdaptiveShell(
     clankerContent: @Composable (Modifier) -> Unit = { ClankerPlaceholder(it) },
     terminalContent: @Composable (Modifier) -> Unit = { FeaturePlaceholder("Terminal", "Sandbox shell", it) },
     gitContent: @Composable (Modifier) -> Unit = { FeaturePlaceholder("Git", "Local git", it) },
+    problemsContent: @Composable (Modifier) -> Unit = { FeaturePlaceholder("Problems", "No problems yet.", it) },
+    outputContent: @Composable (Modifier) -> Unit = { FeaturePlaceholder("Output", "No output yet.", it) },
     settingsContent: @Composable (() -> Unit) -> Unit = { onDismiss -> SettingsPlaceholder(onDismiss) },
+    compactBuildContent: @Composable () -> Unit = {},
+    onBuild: () -> Unit = {},
 ) {
     val useRail = state.sizeClass == SizeClass.Compact && state.heightCompact
     Scaffold(
@@ -162,6 +166,7 @@ fun AdaptiveShell(
                 onToggleClanker = onToggleClanker,
                 onToggleBottom = onToggleBottom,
                 onShowTerminal = onShowTerminal,
+                onBuild = onBuild,
                 onSettings = { onOpenPalette(WorkshopPaletteKind.Settings) },
                 onCloseWorkspace = onCloseWorkspace,
             )
@@ -191,6 +196,8 @@ fun AdaptiveShell(
                     clankerContent = clankerContent,
                     terminalContent = terminalContent,
                     gitContent = gitContent,
+                    problemsContent = problemsContent,
+                    outputContent = outputContent,
                 )
                 WorkshopOverlays(
                     state = state,
@@ -200,6 +207,7 @@ fun AdaptiveShell(
                     onFileQuery = onFileQuery,
                     onCommand = onCommand,
                     settingsContent = settingsContent,
+                    compactBuildContent = compactBuildContent,
                 )
             }
         }
@@ -222,6 +230,8 @@ private fun WorkshopBody(
     clankerContent: @Composable (Modifier) -> Unit,
     terminalContent: @Composable (Modifier) -> Unit,
     gitContent: @Composable (Modifier) -> Unit,
+    problemsContent: @Composable (Modifier) -> Unit,
+    outputContent: @Composable (Modifier) -> Unit,
 ) {
     when (state.chrome.layout) {
         WorkshopLayout.CompactDestinations -> CompactBody(
@@ -251,6 +261,8 @@ private fun WorkshopBody(
             clankerContent = clankerContent,
             terminalContent = terminalContent,
             gitContent = gitContent,
+            problemsContent = problemsContent,
+            outputContent = outputContent,
         )
         WorkshopLayout.ExpandedThreePane -> ExpandedBody(
             state = state,
@@ -265,6 +277,8 @@ private fun WorkshopBody(
             clankerContent = clankerContent,
             terminalContent = terminalContent,
             gitContent = gitContent,
+            problemsContent = problemsContent,
+            outputContent = outputContent,
         )
     }
 }
@@ -352,6 +366,8 @@ private fun MediumBody(
     clankerContent: @Composable (Modifier) -> Unit,
     terminalContent: @Composable (Modifier) -> Unit,
     gitContent: @Composable (Modifier) -> Unit,
+    problemsContent: @Composable (Modifier) -> Unit,
+    outputContent: @Composable (Modifier) -> Unit,
 ) {
     var filesW by remember(state.chrome.filesWeight) { mutableFloatStateOf(state.chrome.filesWeight) }
     var editorW by remember(state.chrome.editorWeight) { mutableFloatStateOf(state.chrome.editorWeight) }
@@ -395,6 +411,8 @@ private fun MediumBody(
                     modifier = Modifier.fillMaxSize(),
                     terminalContent = terminalContent,
                     gitContent = gitContent,
+                    problemsContent = problemsContent,
+                    outputContent = outputContent,
                 )
             }
         }
@@ -426,6 +444,8 @@ private fun ExpandedBody(
     clankerContent: @Composable (Modifier) -> Unit,
     terminalContent: @Composable (Modifier) -> Unit,
     gitContent: @Composable (Modifier) -> Unit,
+    problemsContent: @Composable (Modifier) -> Unit,
+    outputContent: @Composable (Modifier) -> Unit,
 ) {
     var filesW by remember(state.chrome.filesWeight) { mutableFloatStateOf(state.chrome.filesWeight) }
     var editorW by remember(state.chrome.editorWeight) { mutableFloatStateOf(state.chrome.editorWeight) }
@@ -482,6 +502,8 @@ private fun ExpandedBody(
                 modifier = Modifier.fillMaxSize(),
                 terminalContent = terminalContent,
                 gitContent = gitContent,
+                problemsContent = problemsContent,
+                outputContent = outputContent,
             )
         }
         if (state.landscape || state.chrome.clankerDocked || state.chrome.clankerVisible) {
@@ -520,6 +542,8 @@ private fun EditorColumn(
     onBottomDrag: ((Float, Float) -> Unit)? = null,
     terminalContent: @Composable (Modifier) -> Unit = {},
     gitContent: @Composable (Modifier) -> Unit = {},
+    problemsContent: @Composable (Modifier) -> Unit = {},
+    outputContent: @Composable (Modifier) -> Unit = {},
 ) {
     var colH by remember { mutableFloatStateOf(1f) }
     val normalizedBottomWeight = bottomWeight.coerceIn(0.12f, 0.6f)
@@ -549,6 +573,8 @@ private fun EditorColumn(
                 modifier = Modifier.weight(normalizedBottomWeight),
                 terminalContent = terminalContent,
                 gitContent = gitContent,
+                problemsContent = problemsContent,
+                outputContent = outputContent,
             )
         }
     }
@@ -563,7 +589,9 @@ private fun WorkshopOverlays(
     onFileQuery: (String) -> Unit,
     onCommand: (WorkshopCommand) -> Unit,
     settingsContent: @Composable (() -> Unit) -> Unit,
+    compactBuildContent: @Composable () -> Unit,
 ) {
+    compactBuildContent()
     when (state.palette) {
         WorkshopPaletteKind.None -> Unit
         WorkshopPaletteKind.File -> FilePaletteDialog(
@@ -596,6 +624,7 @@ private fun WorkshopTopBar(
     onToggleClanker: () -> Unit,
     onToggleBottom: () -> Unit,
     onShowTerminal: () -> Unit,
+    onBuild: () -> Unit,
     onSettings: () -> Unit,
     onCloseWorkspace: () -> Unit,
 ) {
@@ -623,6 +652,10 @@ private fun WorkshopTopBar(
                     WorkshopStatusPill("buffer dirty", modifier = Modifier.padding(end = 4.dp))
                 }
                 TextButton(onClick = onSave) { Text(if (sizeClass == SizeClass.Compact) "SV" else "Save") }
+                TextButton(
+                    onClick = onBuild,
+                    modifier = Modifier.semantics { contentDescription = WorkshopSemantics.BUILD_BUTTON },
+                ) { Text(if (sizeClass == SizeClass.Compact) "BLD" else "Build") }
                 if (sizeClass != SizeClass.Compact) {
                     val expanded = sizeClass == SizeClass.Expanded
                     TextButton(onClick = onToggleFiles) { Text(if (expanded) "[FILES]" else "FS") }

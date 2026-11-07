@@ -4,7 +4,7 @@ package dev.clankyard.core.ui
  * Hardware chords handled at Activity/root, not only inside a focused composable.
  * [WorkshopKey.Delete] is never bound to file delete (confirm-dialog only).
  */
-enum class WorkshopKey { P, F, S, Grave, Z, Y, Escape, Delete }
+enum class WorkshopKey { P, F, S, B, Grave, Z, Y, Escape, Delete }
 
 data class KeyChord(
     val key: WorkshopKey,
@@ -24,6 +24,7 @@ enum class WorkshopShortcut {
     Undo,
     Redo,
     DismissPalettes,
+    BuildDebug,
 }
 
 object WorkshopKeyMap {
@@ -36,6 +37,7 @@ object WorkshopKeyMap {
             chord.ctrl && chord.shift && chord.key == WorkshopKey.F -> WorkshopShortcut.ProjectSearch
             chord.ctrl && chord.shift && chord.key == WorkshopKey.S -> WorkshopShortcut.SaveAll
             chord.ctrl && !chord.shift && chord.key == WorkshopKey.S -> WorkshopShortcut.Save
+            chord.ctrl && !chord.shift && chord.key == WorkshopKey.B -> WorkshopShortcut.BuildDebug
             chord.ctrl && !chord.shift && chord.key == WorkshopKey.Grave -> WorkshopShortcut.ToggleTerminal
             chord.ctrl && chord.shift && chord.key == WorkshopKey.Z -> WorkshopShortcut.Redo
             chord.ctrl && !chord.shift && chord.key == WorkshopKey.Y -> WorkshopShortcut.Redo

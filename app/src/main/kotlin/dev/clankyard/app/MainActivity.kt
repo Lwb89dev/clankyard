@@ -46,6 +46,10 @@ import dev.clankyard.feature.search.SearchViewModel
 import dev.clankyard.feature.settings.SettingsScreen
 import dev.clankyard.feature.settings.WorkshopSettingsStore
 import dev.clankyard.feature.terminal.TerminalPane
+import dev.clankyard.feature.build.BuildOutputPane
+import dev.clankyard.feature.build.BuildProblemsPane
+import dev.clankyard.feature.build.CompactBuildDialog
+import dev.clankyard.feature.build.RuntimeManagerScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
@@ -142,6 +146,7 @@ private fun WorkshopScreen(
     val clankerVm by workspaceSession.clanker.collectAsStateWithLifecycle()
     val terminal by workspaceSession.terminal.collectAsStateWithLifecycle()
     val settingsVm by workspaceSession.settings.collectAsStateWithLifecycle()
+    val buildVm by workspaceSession.build.collectAsStateWithLifecycle()
     val session by editorSession.session.collectAsStateWithLifecycle()
     val explorerState = collectExplorer(explorerVm)
     val searchState = collectSearch(searchVm)
@@ -202,19 +207,31 @@ private fun WorkshopScreen(
         onFileQuery = workspaceSession::setFileQuery,
         onCommand = workspaceSession::runCommand,
         onCloseWorkspace = workspaceSession::closeWorkspace,
+        onBuild = { workspaceSession.startBuild(dev.clankyard.build.api.BuildTask.AssembleDebug) },
         clankerContent = { modifier -> ClankerPane(clankerVm, modifier) },
         terminalContent = { modifier -> TerminalPane(terminal, modifier) },
         gitContent = { modifier ->
             if (gitVm != null) GitScreen(gitVm!!, modifier)
             else FeaturePlaceholder("Git", "Open a workshop.", modifier)
         },
+        problemsContent = { modifier -> BuildProblemsPane(buildVm, modifier) },
+        outputContent = { modifier -> BuildOutputPane(buildVm, modifier) },
+        compactBuildContent = { buildVm?.let { CompactBuildDialog(it) } },
         settingsContent = { onDismiss ->
             val vm = settingsVm
             if (vm != null) {
-                SettingsScreen(vm, onDismiss = {
-                    clankerVm?.refreshKeyFlag()
-                    onDismiss()
-                }, onThemeChanged = onThemeChanged)
+                SettingsScreen(
+                    vm,
+                    onDismiss = {
+                        clankerVm?.refreshKeyFlag()
+                        onDismiss()
+                    },
+                    onThemeChanged = onThemeChanged,
+                    runtimesContent = {
+                        val runtimesVm = buildVm
+                        if (runtimesVm != null) RuntimeManagerScreen(runtimesVm)
+                    },
+                )
             } else {
                 FeaturePlaceholder("Settings", "Unavailable", Modifier)
             }

@@ -213,6 +213,8 @@ fun BottomToolsPane(
     modifier: Modifier = Modifier,
     terminalContent: @Composable (Modifier) -> Unit = { FeaturePlaceholder("Terminal", "Sandbox shell", it) },
     gitContent: @Composable (Modifier) -> Unit = { FeaturePlaceholder("Git", "Local git", it) },
+    problemsContent: @Composable (Modifier) -> Unit = { FeaturePlaceholder("Problems", "No problems yet.", it) },
+    outputContent: @Composable (Modifier) -> Unit = { FeaturePlaceholder("Output", "No output yet.", it) },
 ) {
     Column(
         modifier = modifier
@@ -232,9 +234,9 @@ fun BottomToolsPane(
         }
         when (selected) {
             BottomTab.Terminal -> terminalContent(Modifier.fillMaxSize())
-            BottomTab.Problems -> FeaturePlaceholder(title = "Problems", body = "No problems yet.")
+            BottomTab.Problems -> problemsContent(Modifier.fillMaxSize())
             BottomTab.Git -> gitContent(Modifier.fillMaxSize())
-            BottomTab.Output -> FeaturePlaceholder(title = "Output", body = "No output yet.")
+            BottomTab.Output -> outputContent(Modifier.fillMaxSize())
         }
     }
 }

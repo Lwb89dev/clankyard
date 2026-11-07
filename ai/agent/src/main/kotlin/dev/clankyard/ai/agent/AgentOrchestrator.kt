@@ -10,6 +10,8 @@ import dev.clankyard.core.model.Credential
 import dev.clankyard.core.model.RequestId
 import dev.clankyard.git.GitHandle
 import dev.clankyard.ai.patch.PatchEngine
+import dev.clankyard.build.api.BuildQuery
+import dev.clankyard.build.api.ProposedBuild
 import dev.clankyard.workspace.Workspace
 import kotlinx.coroutines.flow.Flow
 
@@ -22,6 +24,7 @@ data class AgentTurnRequest(
     val workspace: Workspace,
     val git: GitHandle? = null,
     val patchEngine: PatchEngine? = null,
+    val buildQuery: BuildQuery? = null,
 )
 
 sealed interface AgentEvent {
@@ -30,6 +33,7 @@ sealed interface AgentEvent {
     data class ToolStarted(val name: String) : AgentEvent
     data class ToolFinished(val name: String, val error: Boolean) : AgentEvent
     data class PatchProposed(val patch: PatchSet) : AgentEvent
+    data class BuildProposed(val build: ProposedBuild) : AgentEvent
     data class Usage(val inputTokens: Int?, val outputTokens: Int?) : AgentEvent
     data class Error(val message: String, val retryable: Boolean) : AgentEvent
     data object Completed : AgentEvent

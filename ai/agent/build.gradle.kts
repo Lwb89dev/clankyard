@@ -23,6 +23,7 @@ dependencies {
     api(project(":ai:tools"))
     api(project(":ai:secret"))
     api(project(":ai:patch"))
+    api(project(":build:api"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     testImplementation(project(":ai:providers:fake"))

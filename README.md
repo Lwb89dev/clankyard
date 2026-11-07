@@ -13,8 +13,10 @@ in [`icon.png`](icon.png).
 
 Version `0.1.0`, pre-1.0. The app is usable as a local workshop, while some
 integrations remain experimental. On-device Android build support exists in the
-`:build:api`, `:build:runtime`, and `:build:engine` modules, but it is not yet
-wired into the main application UI.
+`:build:*` and `:feature:build` modules. The workshop Build button, Output
+and Problems tabs, and Settings → Runtimes screen are wired. JDK and Gradle
+packs stay unpublished until `clankyard-runtimes` ships a zip + SHA-256; the
+button then asks you to install a runtime.
 
 ## Available features
 
@@ -74,8 +76,8 @@ Instrumented tests, using an Android device or emulator:
 ```
 
 The native execution experiments currently include the `arm64-v8a` ABI. The
-on-device build modules are experimental and require separate runtime/toolchain
-packs; they are not yet exposed as a main application feature.
+on-device build UI is present; toolchain packs are optional downloads and are
+not published in this tree.
 
 ## License
 

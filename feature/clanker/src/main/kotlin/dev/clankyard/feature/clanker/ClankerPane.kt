@@ -184,6 +184,17 @@ fun ClankerPane(viewModel: ClankerViewModel?, modifier: Modifier = Modifier) {
                 TextButton(onClick = { viewModel.onEvent(ClankerEvent.RejectAll) }) { Text("Reject") }
             }
         }
+        state.proposedBuild?.let { proposed ->
+            WorkshopPanel(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Proposed build: ${proposed.task.name}")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { viewModel.onEvent(ClankerEvent.AcceptBuild) }) { Text("Accept build") }
+                        TextButton(onClick = { viewModel.onEvent(ClankerEvent.DismissBuild) }) { Text("Dismiss") }
+                    }
+                }
+            }
+        }
         if (state.needsKey) {
             WorkshopPanel(modifier = Modifier.fillMaxWidth()) {
                 Text(

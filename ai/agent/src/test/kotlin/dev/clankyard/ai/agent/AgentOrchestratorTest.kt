@@ -80,6 +80,22 @@ class AgentOrchestratorTest {
         assertTrue(events.last() is AgentEvent.Completed)
     }
 
+    @Test
+    fun editProposeBuildDoesNotStartGradle() = runBlocking {
+        val ws = openWs()
+        val fake = FakeLlmProvider()
+        fake.enqueue(
+            ChatEvent.ToolCall("t1", "propose_build", """{"task":"assembleDebug"}"""),
+            ChatEvent.Completed,
+        )
+        fake.enqueue(ChatEvent.Delta("ok"), ChatEvent.Completed)
+        val events = orchestrator(ws, fake).run(turn(ws, AgentMode.Edit, "build it")).toList()
+        assertTrue(events.any { it is AgentEvent.BuildProposed })
+        val proposed = events.filterIsInstance<AgentEvent.BuildProposed>().single()
+        assertEquals(dev.clankyard.build.api.BuildTask.AssembleDebug, proposed.build.task)
+        assertFalse(events.any { it is AgentEvent.PatchProposed })
+    }
+
     private fun orchestrator(
         ws: DiskFileBackedWorkspace,
         fake: FakeLlmProvider = FakeLlmProvider(),

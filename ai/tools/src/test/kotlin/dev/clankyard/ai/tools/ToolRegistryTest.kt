@@ -252,6 +252,26 @@ class ToolRegistryTest {
     }
 
     @Test
+    fun proposeBuildIsTaskOnlyAndHiddenInAsk() = runBlocking {
+        val ws = openWs()
+        val ask = invoke("propose_build", json("task" to "assembleDebug"), ws, mode = AgentMode.Ask)
+        assertTrue(ask.isError)
+        assertTrue(ask.proposedBuilds.isEmpty())
+        val extra = invoke(
+            "propose_build",
+            json("task" to "assembleDebug", "argv" to "--offline"),
+            ws,
+        )
+        assertTrue(extra.isError)
+        assertTrue(extra.proposedBuilds.isEmpty())
+        val bad = invoke("propose_build", json("task" to "assembleDebug --offline"), ws)
+        assertTrue(bad.isError)
+        val ok = invoke("propose_build", json("task" to "assembleDebug"), ws)
+        assertFalse(ok.isError)
+        assertEquals(dev.clankyard.build.api.BuildTask.AssembleDebug, ok.proposedBuilds.single().task)
+    }
+
+    @Test
     fun mainSourcesDoNotUseFileOrFileBackedWorkspace() {
         val src = moduleMain()
         assertTrue(src.isDirectory)
@@ -326,13 +346,16 @@ class ToolRegistryTest {
 }
 
 private val HIGH_RISK_NAMES = listOf("run_command", "delete_file", "git_commit", "git_push")
-private val WRITE_TOOLS = listOf("create_file", "replace_text", "rename_file")
+private val WRITE_TOOLS = listOf("create_file", "replace_text", "rename_file", "propose_build")
 private val SAFE_READ_TOOLS = listOf(
     "read_file",
     "list_directory",
     "search_text",
     "git_status",
     "git_diff",
+    "get_build_status",
+    "get_build_log",
+    "get_diagnostics",
 )
 
 private fun forbiddenImport(line: String): Boolean {

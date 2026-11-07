@@ -25,6 +25,7 @@ dependencies {
     api(project(":ai:secret"))
     api(project(":ai:tools"))
     api(project(":ai:provider-api"))
+    api(project(":build:api"))
     api(project(":feature:settings"))
     implementation(project(":core:ui"))
     implementation(project(":core:security"))

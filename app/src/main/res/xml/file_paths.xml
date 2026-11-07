@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- BUILD artifacts only. Never grant credentials/, drafts/, or workshops/. -->
+    <files-path name="artifacts" path="environment/artifacts/" />
+</paths>

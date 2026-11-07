@@ -79,3 +79,21 @@ internal val RENAME_FILE_SCHEMA = """
   }
 }
 """.trimIndent()
+
+internal val EMPTY_OBJECT_SCHEMA = """
+{
+  "type": "object",
+  "properties": {}
+}
+""".trimIndent()
+
+internal val PROPOSE_BUILD_SCHEMA = """
+{
+  "type": "object",
+  "required": ["task"],
+  "additionalProperties": false,
+  "properties": {
+    "task": { "type": "string", "enum": ["assembleDebug", "clean", "rebuild"] }
+  }
+}
+""".trimIndent()

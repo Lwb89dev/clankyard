@@ -4,6 +4,7 @@ import dev.clankyard.ai.context.AgentMode
 import dev.clankyard.ai.context.ContextEngine
 import dev.clankyard.ai.context.ContextPacket
 import dev.clankyard.ai.patch.ProposedEdit
+import dev.clankyard.build.api.ProposedBuild
 import dev.clankyard.ai.provider.ChatEvent
 import dev.clankyard.ai.provider.ChatMessage
 import dev.clankyard.ai.provider.ChatRequest
@@ -42,11 +43,13 @@ class DefaultAgentOrchestrator(
         messages += systemMessage(request.mode, packet)
         messages += ChatMessage(ChatRole.User, listOf(ContentPart.Text(request.context.prompt)))
         val edits = ArrayList<ProposedEdit>()
-        if (!driveRounds(request, credential, messages, edits)) return@flow
+        val builds = ArrayList<ProposedBuild>()
+        if (!driveRounds(request, credential, messages, edits, builds)) return@flow
         val engine = request.patchEngine
         if (request.mode == AgentMode.Edit && edits.isNotEmpty() && engine != null) {
             emit(AgentEvent.PatchProposed(engine.validateAndDiff(edits)))
         }
+        if (builds.isNotEmpty()) emit(AgentEvent.BuildProposed(builds.first()))
         emit(AgentEvent.Completed)
     }
 
@@ -55,6 +58,7 @@ class DefaultAgentOrchestrator(
         credential: Credential,
         messages: MutableList<ChatMessage>,
         edits: MutableList<ProposedEdit>,
+        builds: MutableList<ProposedBuild>,
     ): Boolean {
         var round = 0
         while (round <= maxToolRounds) {
@@ -66,7 +70,7 @@ class DefaultAgentOrchestrator(
                 emit(AgentEvent.Error("tool round limit", retryable = false))
                 return true
             }
-            val parts = runTools(request, outcome.calls, edits)
+            val parts = runTools(request, outcome.calls, edits, builds)
             messages += assistantToolUses(outcome.calls)
             messages += ChatMessage(ChatRole.Tool, parts)
             round++
@@ -136,8 +140,14 @@ class DefaultAgentOrchestrator(
         request: AgentTurnRequest,
         calls: List<ChatEvent.ToolCall>,
         edits: MutableList<ProposedEdit>,
+        builds: MutableList<ProposedBuild>,
     ): List<ContentPart.ToolResult> {
-        val ctx = ToolContext(request.workspace, request.mode, git = request.git)
+        val ctx = ToolContext(
+            workspace = request.workspace,
+            mode = request.mode,
+            git = request.git,
+            buildQuery = request.buildQuery,
+        )
         val parts = ArrayList<ContentPart.ToolResult>()
         for (call in calls) {
             val tool = tools.get(call.name)
@@ -147,6 +157,7 @@ class DefaultAgentOrchestrator(
                 val args = parseArgs(call.argumentsJson)
                 val result = tool.invoke(args, ctx)
                 edits += result.proposedEdits
+                builds += result.proposedBuilds
                 result.content
             }
             val filtered = secrets.filterToolResult(raw)

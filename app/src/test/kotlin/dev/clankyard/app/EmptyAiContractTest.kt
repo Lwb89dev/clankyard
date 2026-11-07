@@ -17,6 +17,8 @@ class EmptyAiContractTest {
         val state = ClankerUiState()
         assertTrue(state.needsKey)
         assertTrue(state.lines.isEmpty())
+        assertTrue(state.proposedBuild == null)
+        assertTrue(state.patch == null)
     }
 
     @Test

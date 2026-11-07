@@ -33,9 +33,13 @@ internal fun mvpTools(search: TextSearch): List<Tool> = listOf(
     SearchTextTool(search),
     GitStatusTool(),
     GitDiffTool(),
+    GetBuildStatusTool(),
+    GetBuildLogTool(),
+    GetBuildDiagnosticsTool(),
     CreateFileTool(),
     ReplaceTextTool(),
     RenameFileTool(),
+    ProposeBuildTool(),
 )
 
 private fun specIfVisible(tool: Tool, includeWrites: Boolean): ToolSpec? = when (tool.risk) {

@@ -81,6 +81,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     amber: AmberBridge? = null,
     onThemeChanged: (WorkshopTheme) -> Unit = {},
+    runtimesContent: @Composable () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -144,6 +145,7 @@ fun SettingsScreen(
                 amber = bridge,
                 launchAmber = loginLauncher::launch,
                 onThemeChanged = onThemeChanged,
+                runtimesContent = runtimesContent,
             )
         }
     }
@@ -158,6 +160,7 @@ fun SettingsScreenContent(
     launchAmber: ((android.content.Intent) -> Unit)? = null,
     modifier: Modifier = Modifier,
     onThemeChanged: (WorkshopTheme) -> Unit = {},
+    runtimesContent: @Composable () -> Unit = {},
 ) {
     val view = LocalView.current
     val lockScreen = state.keyRevealed || state.keyDraft.isNotEmpty() || state.sshPasswordDraft.isNotEmpty()
@@ -275,6 +278,8 @@ fun SettingsScreenContent(
         if (state.settings.execution == ExecutionKind.Ssh) {
             SshSettings(state, onEvent)
         }
+        HorizontalDivider()
+        runtimesContent()
         state.status?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         TextButton(onClick = onDismiss) { Text("Close") }
     }

@@ -15,6 +15,9 @@ import dev.clankyard.ai.patch.PatchSet
 import dev.clankyard.ai.provider.LlmProvider
 import dev.clankyard.ai.secret.SecretFilter
 import dev.clankyard.ai.tools.ToolRegistry
+import dev.clankyard.build.api.BuildQuery
+import dev.clankyard.build.api.BuildTask
+import dev.clankyard.build.api.ProposedBuild
 import dev.clankyard.core.model.RequestId
 import dev.clankyard.core.model.WorkspacePath
 import dev.clankyard.core.security.SecureCredentialStore
@@ -48,6 +51,7 @@ data class ClankerUiState(
     val needsKey: Boolean = true,
     val pendingEnter: Boolean = false,
     val enterSend: String = WorkshopSettingsStore.ENTER_ASK,
+    val proposedBuild: ProposedBuild? = null,
 )
 
 sealed interface ClankerEvent {
@@ -61,6 +65,8 @@ sealed interface ClankerEvent {
     data class ToggleFile(val path: WorkspacePath) : ClankerEvent
     data object AcceptAll : ClankerEvent
     data object RejectAll : ClankerEvent
+    data object AcceptBuild : ClankerEvent
+    data object DismissBuild : ClankerEvent
 }
 
 class ClankerViewModel(
@@ -77,6 +83,8 @@ class ClankerViewModel(
     private val dirty: () -> Set<WorkspacePath>,
     private val currentFile: () -> WorkspacePath?,
     private val selection: () -> String?,
+    private val buildQuery: () -> BuildQuery? = { null },
+    private val onAcceptBuild: (BuildTask) -> Unit = {},
     private val scope: CoroutineScope,
 ) {
     private val _state = MutableStateFlow(ClankerUiState())
@@ -108,6 +116,8 @@ class ClankerViewModel(
             is ClankerEvent.ToggleFile -> toggle(event.path)
             ClankerEvent.AcceptAll -> applyAccepted()
             ClankerEvent.RejectAll -> reject()
+            ClankerEvent.AcceptBuild -> acceptBuild()
+            ClankerEvent.DismissBuild -> _state.update { it.copy(proposedBuild = null) }
         }
     }
 
@@ -237,6 +247,7 @@ class ClankerViewModel(
             workspace = ws,
             git = handle,
             patchEngine = engine,
+            buildQuery = buildQuery(),
         )
         try {
             agent.run(request).collect { event -> onAgent(event) }
@@ -273,6 +284,12 @@ class ClankerViewModel(
                     status = "Clanker proposes ${ok.size} changes.",
                 )
             }
+            is AgentEvent.BuildProposed -> _state.update {
+                it.copy(
+                    proposedBuild = event.build,
+                    status = "Clanker proposes ${event.build.task.name}.",
+                )
+            }
             is AgentEvent.Usage -> _state.update {
                 it.copy(status = "tokens in=${event.inputTokens ?: "?"} out=${event.outputTokens ?: "?"}")
             }
@@ -304,6 +321,12 @@ class ClankerViewModel(
                 it.copy(patch = null, accepted = emptySet(), status = message)
             }
         }
+    }
+
+    private fun acceptBuild() {
+        val proposed = _state.value.proposedBuild ?: return
+        onAcceptBuild(proposed.task)
+        _state.update { it.copy(proposedBuild = null, status = "Build handed to the workshop.") }
     }
 
     private fun reject() {

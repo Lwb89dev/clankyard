@@ -135,6 +135,14 @@ class SecretFilterTest {
     }
 
     @Test
+    fun buildArtifactsDenied() {
+        assertFalse(filter.decide(path("app/build/outputs/apk/debug/app-debug.apk"), null, 40).allowed)
+        assertFalse(filter.decide(path("app/build/intermediates/javac/debug/classes/Foo.class"), null, 40).allowed)
+        assertFalse(filter.decide(path("app/build/intermediates/dex/debug/classes.dex"), null, 40).allowed)
+        assertFalse(filter.decide(path("bundle.aab"), null, 40).allowed)
+    }
+
+    @Test
     fun extraDenyGlobsAreConfigurable() {
         val custom = filter.withExtraDenyGlobs(listOf("*.tok"))
         assertFalse(custom.decide(path("a.tok"), "text/plain", 4).allowed)

@@ -85,6 +85,14 @@ class WorkshopKeyMapTest {
     }
 
     @Test
+    fun ctrlBIsBuildDebug() {
+        assertEquals(
+            WorkshopShortcut.BuildDebug,
+            WorkshopKeyMap.shortcut(KeyChord(WorkshopKey.B, ctrl = true)),
+        )
+    }
+
+    @Test
     fun unmatchedChordsAreIgnored() {
         assertNull(WorkshopKeyMap.shortcut(KeyChord(WorkshopKey.F, ctrl = true)))
         assertNull(WorkshopKeyMap.shortcut(KeyChord(WorkshopKey.P)))

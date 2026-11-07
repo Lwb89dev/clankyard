@@ -4,5 +4,6 @@
     <exclude domain="file" path="drafts/" />
     <exclude domain="file" path="journal/" />
     <exclude domain="file" path="workspaces/" />
+    <!-- environment/ covers workspaces plus BUILD runtimes/cache/tmp/artifacts. -->
     <exclude domain="file" path="environment/" />
 </full-backup-content>

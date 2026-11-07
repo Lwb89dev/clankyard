@@ -3,6 +3,8 @@ package dev.clankyard.ai.tools
 import dev.clankyard.ai.context.AgentMode
 import dev.clankyard.ai.patch.ProposedEdit
 import dev.clankyard.ai.provider.ToolSpec
+import dev.clankyard.build.api.BuildQuery
+import dev.clankyard.build.api.ProposedBuild
 import dev.clankyard.core.model.RequestId
 import dev.clankyard.git.GitHandle
 import dev.clankyard.workspace.Workspace
@@ -17,6 +19,7 @@ data class ToolResult(
     val content: String,
     val isError: Boolean,
     val proposedEdits: List<ProposedEdit> = emptyList(),
+    val proposedBuilds: List<ProposedBuild> = emptyList(),
 )
 
 data class ToolContext(
@@ -24,6 +27,7 @@ data class ToolContext(
     val mode: AgentMode,
     val grant: HighRiskGrant? = null,
     val git: GitHandle? = null,
+    val buildQuery: BuildQuery? = null,
 )
 
 interface Tool {
@@ -53,5 +57,13 @@ internal fun Tool.denyHighRiskUnlessGranted(ctx: ToolContext) {
 internal fun toolError(message: String): ToolResult =
     ToolResult(content = message, isError = true, proposedEdits = emptyList())
 
-internal fun toolOk(content: String, edits: List<ProposedEdit> = emptyList()): ToolResult =
-    ToolResult(content = content, isError = false, proposedEdits = edits)
+internal fun toolOk(
+    content: String,
+    edits: List<ProposedEdit> = emptyList(),
+    builds: List<ProposedBuild> = emptyList(),
+): ToolResult = ToolResult(
+    content = content,
+    isError = false,
+    proposedEdits = edits,
+    proposedBuilds = builds,
+)

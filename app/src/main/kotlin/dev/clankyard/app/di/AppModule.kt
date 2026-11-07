@@ -38,6 +38,9 @@ import dev.clankyard.git.GitRepository
 import dev.clankyard.git.JGitRepository
 import dev.clankyard.search.InProcessProjectSearch
 import dev.clankyard.search.ProjectSearch
+import dev.clankyard.build.engine.BuildProcessBackend
+import dev.clankyard.build.runtime.LinkerExec
+import dev.clankyard.build.runtime.RuntimeManager
 import dev.clankyard.workspace.FileWorkspaceRegistry
 import dev.clankyard.workspace.WorkshopEnvironment
 import dev.clankyard.workspace.WorkshopTreeOps
@@ -159,4 +162,22 @@ object AppModule {
         @ApplicationContext context: Context,
         credentials: SecureCredentialStore,
     ): WorkshopSettingsStore = WorkshopSettingsStore(context, credentials)
+
+    @Provides
+    @Singleton
+    fun provideRuntimeManager(
+        @ApplicationContext context: Context,
+        client: OkHttpClient,
+    ): RuntimeManager {
+        WorkshopEnvironment.ensure(context.filesDir)
+        return RuntimeManager(client, WorkshopEnvironment.runtimesDir(context.filesDir))
+    }
+
+    @Provides
+    @Singleton
+    fun provideBuildProcessBackend(@ApplicationContext context: Context): BuildProcessBackend {
+        val env = WorkshopEnvironment.ensure(context.filesDir)
+        val interceptor = File(context.applicationInfo.nativeLibraryDir, LinkerExec.INTERCEPTOR_SO)
+        return BuildProcessBackend(jail = env, interceptor = interceptor.takeIf { it.isFile })
+    }
 }

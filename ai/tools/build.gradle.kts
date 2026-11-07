@@ -23,6 +23,7 @@ dependencies {
     api(project(":ai:patch"))
     api(project(":git"))
     api(project(":search"))
+    api(project(":build:api"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)

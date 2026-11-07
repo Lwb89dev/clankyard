@@ -45,6 +45,15 @@ vendor is post-MVP.
 `org.apache.sshd:sshd-core` (Apache-2.0) is the remote `ExecutionBackend`.
 It is not GPL. Termux-app / termux-shared stay forbidden.
 
+## On-device BUILD runtimes
+
+The base APK does not bake a JDK or Android SDK. Optional packs are
+SHA-256-pinned zips listed in `RuntimeManifest`. Until
+`tools/runtimes/` (or the sibling `clankyard-runtimes` repo) publishes a zip,
+those entries stay unpublished. OpenJDK, when published, is
+GPL-2.0-with-classpath-exception and is downloaded after an F-Droid-bypass
+acknowledgement. The default `android.jar` target is an AOSP Apache-2.0 stub.
+
 ## OkHttp and other Apache-2.0 / MIT libraries
 
 OkHttp, Kotlin, AndroidX, Hilt, protobuf, and similar dependencies are used
